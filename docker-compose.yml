@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: paideia-db
+    environment:
+      POSTGRES_USER: paideia
+      POSTGRES_PASSWORD: paideia
+      POSTGRES_DB: paideia
+    ports:
+      - "5433:5432"
+    volumes:
+      - paideia-data:/var/lib/postgresql/data
+
+volumes:
+  paideia-data:
