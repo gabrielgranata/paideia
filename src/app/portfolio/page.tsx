@@ -331,6 +331,30 @@ export default async function StudentPortfolioPage({
                     </p>
                   )}
                 </div>
+
+                {/* Drill-in to the full /progression view. Only surfaced
+                    when there's a composition to read; the sidebar
+                    summary above is the snapshot, the route is the
+                    paragraph-level read. */}
+                {progression?.derived_content && (
+                  <Link
+                    href={`/progression/${user.student_id}`}
+                    style={{
+                      display: "inline-block",
+                      marginTop: 12,
+                      paddingLeft: 8,
+                      fontFamily: tokens.font.ui,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: tokens.ai.label,
+                      letterSpacing: "0.10em",
+                      textTransform: "uppercase",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Open full view →
+                  </Link>
+                )}
               </div>
             )}
           </aside>

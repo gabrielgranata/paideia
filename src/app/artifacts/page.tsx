@@ -216,6 +216,53 @@ export default async function ArtifactsPage() {
                 observations as you work.
               </p>
             )}
+
+            {/* Across-time drill-in to /progression. Peripheral: lives
+                at the foot of the page, below the student's work, so
+                Sessions / Notes / Artifacts stay foreground. Only shown
+                once the student has started a session — the composer
+                needs readings to read across. */}
+            {hasAnyEngagement && (
+              <div
+                style={{
+                  marginTop: 36,
+                  paddingTop: 18,
+                  borderTop: `1px solid ${tokens.color.border}`,
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: tokens.font.body,
+                    fontSize: 12,
+                    fontStyle: "italic",
+                    color: tokens.color.ter,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {tokens.aiMarker} Across-time reading — how the system reads
+                  your reasoning moving across sessions.
+                </span>
+                <Link
+                  href={`/progression/${user.student_id}`}
+                  style={{
+                    fontFamily: tokens.font.ui,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: tokens.ai.label,
+                    letterSpacing: "0.10em",
+                    textTransform: "uppercase",
+                    textDecoration: "underline",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Your development →
+                </Link>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { sql } from "@/lib/db";
-import { tokens, type Stage } from "@/lib/design/tokens";
+import { tokens, type Stage, STAGE_LABEL } from "@/lib/design/tokens";
 import Chrome from "@/components/a2ui/Chrome";
 import { requireRole } from "@/lib/auth";
 import { submitAnnotation, composeReading } from "@/app/actions/teacher";
@@ -49,7 +49,7 @@ type AnnotationRow = {
   status: string;
 };
 
-const COURSE_ID = "course_apwh_2024";
+const COURSE_ID = "course_irm_2025";
 
 export default async function StudentDetailPage({
   params,
@@ -256,10 +256,9 @@ export default async function StudentDetailPage({
                   borderRadius: 20,
                   background: stageStyle.bg,
                   color: stageStyle.text,
-                  textTransform: "lowercase",
                 }}
               >
-                {student.stage}
+                {student.stage && STAGE_LABEL[student.stage]}
               </span>
             )}
             {student.flagged && (
@@ -323,6 +322,50 @@ export default async function StudentDetailPage({
             overflowY: "auto",
           }}
         >
+          {/* Across-time drill-in — peripheral pointer to /progression.
+              The per-session reading below is the snapshot; /progression
+              is the arc. Kept structural ("Across-time reading"), not
+              evaluative. */}
+          <Link
+            href={`/progression/${student.id}`}
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: 16,
+              paddingBottom: 12,
+              borderBottom: `1px solid ${tokens.color.border}`,
+              textDecoration: "none",
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: tokens.font.ui,
+                fontSize: 9,
+                fontWeight: 700,
+                color: tokens.ai.label,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+              }}
+            >
+              {tokens.aiMarker} Across-time reading
+            </span>
+            <span
+              style={{
+                fontFamily: tokens.font.ui,
+                fontSize: 9,
+                fontWeight: 700,
+                color: tokens.ai.label,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                textDecoration: "underline",
+              }}
+            >
+              Open →
+            </span>
+          </Link>
+
           <div
             style={{
               display: "flex",

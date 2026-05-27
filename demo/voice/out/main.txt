@@ -1,0 +1,6 @@
+file 'SEGMENT-1.mp3'
+file 'SEGMENT-2.mp3'
+file 'SEGMENT-3.mp3'
+file 'SEGMENT-4.mp3'
+file 'SEGMENT-5.mp3'
+file 'SEGMENT-6.mp3'

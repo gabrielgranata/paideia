@@ -1,26 +1,35 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { sql } from "@/lib/db";
 import { tokens } from "@/lib/design/tokens";
 import Chrome from "@/components/a2ui/Chrome";
-import { requireRole } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { composeStudentProgression } from "@/app/actions/teacher";
+import { composeProgression } from "@/app/actions/student";
 
-// Teacher's progression view of one student. The across-time read of how
-// the student's reasoning has moved — composed once per scope and stored
-// on `progressions`. Beat 10 shape: four observational moves
+// Progression view of one student — same content for teacher and student,
+// gated by role. Beat 10 shape: four observational moves
 // (prior_state → inflection_moment → current_state → recommended_next),
-// each anchored to one or more lessons.
+// each anchored to one or more lessons. Composed once per scope and
+// stored on `progressions`.
+//
+// Role gating:
+//   teacher → can view any student in the course; refresh runs
+//             composeStudentProgression (course-wide OR lesson-scoped).
+//   student → can only view their OWN progression; refresh runs the
+//             student-side composeProgression (course-wide only — the
+//             student action doesn't accept a lesson scope in v0).
+//             Lesson-scope query param is ignored for students.
 //
 // Scope:
-//   ?lesson_id=…  → progression scoped to that lesson only
+//   ?lesson_id=…  → progression scoped to that lesson only (teacher only)
 //   default       → progression across the whole active course
 //
 // Empty state when fewer than 2 readings exist in scope. The composer
 // requires comparison between sessions; one session is a snapshot, not a
 // progression. Refresh re-runs the composer (~3–5s).
 
-const COURSE_ID = "course_apwh_2024";
+const COURSE_ID = "course_irm_2025";
 
 type ProgressionContent = {
   prior_state: string;
@@ -54,10 +63,26 @@ export default async function ProgressionPage({
   params: Promise<{ student_id: string }>;
   searchParams: Promise<{ lesson_id?: string }>;
 }) {
-  const user = await requireRole("teacher");
+  const user = await requireUser();
   const { student_id } = await params;
   const { lesson_id: lessonIdRaw } = await searchParams;
-  const lessonId = lessonIdRaw && lessonIdRaw.trim() ? lessonIdRaw.trim() : null;
+
+  // Students can only view their own progression. If a student lands on
+  // someone else's URL, bounce them to their own — not a 404, since the
+  // page exists; they just don't own the scope.
+  const isTeacher = user.role === "teacher";
+  if (!isTeacher) {
+    if (!user.student_id) throw new Error("Student account missing student_id");
+    if (user.student_id !== student_id) {
+      redirect(`/progression/${user.student_id}`);
+    }
+  }
+
+  // Lesson scope is teacher-only in v0 — composeProgression (student action)
+  // doesn't accept a lesson_id. Silently ignore the query param for students
+  // rather than rendering a Refresh that would throw.
+  const lessonId =
+    isTeacher && lessonIdRaw && lessonIdRaw.trim() ? lessonIdRaw.trim() : null;
 
   const studentRows = (await sql`
     select id, name from students where id = ${student_id}
@@ -78,9 +103,11 @@ export default async function ProgressionPage({
   }
   const effectiveLessonId = scopedLesson ? scopedLesson.id : null;
 
-  // Count of readings in scope — drives the empty-state branch. The
-  // composer requires ≥2; below that, we render the empty state instead
-  // of offering a Refresh that would throw.
+  // Count of readings in scope — drives the empty-state branch. We allow
+  // composing with a single reading so the backboard read/write actually
+  // fires on demo systems with only one session in flight; the composer
+  // prompt is shaped to handle the single-reading case without inventing
+  // an inflection moment that didn't happen.
   const readingCountRows = effectiveLessonId
     ? ((await sql`
         select count(*)::int as n
@@ -121,7 +148,7 @@ export default async function ProgressionPage({
       `) as unknown as ProgressionRow[]);
   const progression = progressionRows[0] ?? null;
 
-  const canCompose = readingCount >= 2;
+  const canCompose = readingCount >= 1;
   const derivedAt = progression?.derived_at
     ? new Date(progression.derived_at).toLocaleDateString("en-US", {
         month: "short",
@@ -140,9 +167,9 @@ export default async function ProgressionPage({
     >
       <Chrome
         title="Progression"
-        subtitle={`${student.name} · Teacher view`}
-        backHref={`/teacher/student/${student_id}`}
-        backLabel="Student"
+        subtitle={isTeacher ? `${student.name} · Teacher view` : "Your development"}
+        backHref={isTeacher ? `/teacher/student/${student_id}` : "/portfolio"}
+        backLabel={isTeacher ? "Student" : "Portfolio"}
         right={
           derivedAt
             ? `Composed ${derivedAt}`
@@ -193,10 +220,18 @@ export default async function ProgressionPage({
               >
                 {tokens.aiMarker} Across-time reading
               </span>
-              <form action={composeStudentProgression} style={{ display: "inline" }}>
-                <input type="hidden" name="student_id" value={student_id} />
+              <form
+                action={isTeacher ? composeStudentProgression : composeProgression}
+                style={{ display: "inline" }}
+              >
+                {/* Teacher action needs the explicit student_id (they may
+                    be reading any student); the student action derives it
+                    from the session cookie. lesson_id is teacher-only. */}
+                {isTeacher && (
+                  <input type="hidden" name="student_id" value={student_id} />
+                )}
                 <input type="hidden" name="course_id" value={COURSE_ID} />
-                {effectiveLessonId && (
+                {isTeacher && effectiveLessonId && (
                   <input type="hidden" name="lesson_id" value={effectiveLessonId} />
                 )}
                 <button
@@ -398,8 +433,9 @@ function EmptyState() {
           marginInline: "auto",
         }}
       >
-        Not enough work yet to compose progression. Across-time reading needs
-        at least two sessions to compare.
+        No completed readings yet in this scope. The progression composes
+        from per-lesson readings; once this student has at least one,
+        the across-time view will appear here.
       </p>
     </div>
   );

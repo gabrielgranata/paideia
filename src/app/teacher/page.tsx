@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
-import { tokens, type Stage } from "@/lib/design/tokens";
+import { tokens, type Stage, STAGE_LABEL } from "@/lib/design/tokens";
 import Chrome from "@/components/a2ui/Chrome";
 import { requireRole } from "@/lib/auth";
 import { composeClassSummary } from "@/app/actions/teacher";
@@ -19,8 +19,8 @@ type ClassRow = {
   flagged: boolean;
 };
 
-type Filter = "all" | "flagged" | "emerging" | "developing" | "connecting";
-const FILTERS: Filter[] = ["all", "flagged", "emerging", "developing", "connecting"];
+type Filter = "all" | "flagged" | "emerging" | "developing" | "proficient" | "extending" | "ie";
+const FILTERS: Filter[] = ["all", "flagged", "emerging", "developing", "proficient", "extending", "ie"];
 
 export default async function TeacherDashboard({
   searchParams,
@@ -123,7 +123,8 @@ export default async function TeacherDashboard({
       >
         {FILTERS.map((f) => {
           const active = filter === f;
-          const label = f === "all" ? "All" : capitalize(f);
+          const label =
+            f === "all" ? "All" : f === "flagged" ? "Flagged" : STAGE_LABEL[f];
           return (
             <Link
               key={f}
@@ -361,10 +362,9 @@ function StudentCard({ row }: { row: ClassRow }) {
               borderRadius: 20,
               background: stageStyle.bg,
               color: stageStyle.text,
-              textTransform: "lowercase",
             }}
           >
-            {row.stage}
+            {row.stage && STAGE_LABEL[row.stage]}
           </span>
         )}
       </div>
@@ -397,6 +397,3 @@ function StudentCard({ row }: { row: ClassRow }) {
   );
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}

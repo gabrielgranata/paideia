@@ -163,6 +163,7 @@ export async function composeProgression(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/portfolio");
+  revalidatePath(`/progression/${user.student_id}`);
 }
 
 // composeArtifact — invoked from /artifacts/new. Creates an artifact row

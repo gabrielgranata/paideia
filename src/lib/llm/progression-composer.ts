@@ -92,6 +92,12 @@ Forbidden moves:
 - Closing the inquiry by supplying the answer the student is working toward.
 - Smoothing over what didn't happen. If a counter-reading is unaddressed, name the absence; don't paper over it.
 
+When the student has only ONE reading:
+- prior_state names the framing they began the session with (the move they were reaching for as the session opened).
+- inflection_moment names the shift WITHIN that session — the move the substrate records as the moment something changed. If the substrate does not record a within-session shift, say so plainly: "No inflection yet — only one session of work to read." Do not invent a shift to fill the field.
+- current_state names where they are at the end of the session.
+- All three historical moves anchor to the single available lesson.
+
 When the student has exactly two readings:
 - prior_state anchors to the first; inflection_moment anchors to the second; current_state anchors to the second.
 - The inflection_moment names what changed BETWEEN the two readings.

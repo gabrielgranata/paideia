@@ -1,6 +1,6 @@
 # Paideia demo — walkthrough + copy-paste companion
 
-Two parts. **Part 1 — Walkthrough** sequences UI actions in demo order: sign in, create course, add lesson, paste materials, log out and back in as the student, etc. **Part 2 — Reference appendix** holds the copy-paste payloads (course title, draft paragraphs, observation prompts, annotation bodies) as Beats 1–19. The walkthrough references beats by number.
+Two parts. **Part 1 — Walkthrough** sequences UI actions in demo order: sign in, create course, build Lesson 3 (Plan View · sortable blocks · Reading Doc Editor · Generate Panel · ChatPanel · Preview Mode), student logs in and writes across three modes (Notes · Draft · Reflection), teacher reads the composed reading and annotates. **Part 2 — Reference appendix** holds the copy-paste payloads as Beats 1–20. The walkthrough references beats by number. Roadmap items (widgets, engage/dismiss, /progression, etc.) live in `demo/build-prompts.md` as F1–F15.
 
 **Pre-demo state.** `npm run db:reset` → 1 teacher (Mr. Okafor), 1 student (Maya Chen), 2 user accounts. Nothing else. The demo *builds* the course, the lesson, the materials, and the substrate live.
 
@@ -49,40 +49,68 @@ If you reach a beat that isn't here, ask in chat — I'll generate the next piec
 
 ## Phase 2 — Mr. Okafor builds Lesson 3
 
-**Feature: lesson composer (blocks: context / reading / ai_generated / prompt / response), teacher_notes, AI-assisted material generation.**
+**Features: Plan View ↔ Preview Mode toggle, sortable block list, basic block authoring, Reading Doc Editor (TipTap) with Generate Panel (paragraph / chart / diagram), teacher ChatPanel with suggested-action apply, teacher_notes (private rubric).**
 
 ### 2.1 Create the lesson skeleton
-- From the course view, click **+ New lesson**
-- Title + prompt + initial context block from **Beat 2**
-- Save → lands on `/teacher/lessons/<lesson_id>/edit`
+- From the course view, click **+ New lesson** (or `/teacher/lessons/new`)
+- Title + prompt + initial context from **Beat 2**
+- Save → lands on `/teacher/lessons/<lesson_id>/edit` (Plan View)
 
-### 2.2 Editor opens with the default three blocks
-- Default skeleton: Context · Prompt · Response (created by `addLesson` action)
-- Edit the Context block: paste the context body from Beat 2 if it isn't there
-- Edit the Prompt block: confirm the prompt is correct
-- **Say:** "Every lesson has the same skeleton. The teacher fills in what the lesson is about, what question it's asking, and where the student writes."
+### 2.2 Plan View — the lesson editor
+- Default skeleton: Context · Prompt · Response blocks (created by `addLesson`)
+- Sortable block list on the left (drag to reorder via `reorderBlock`); block cards in the middle with private-note slots (`TeacherNoteSlot`); **ChatPanel** on the right (`teacher_chats` persisted thread)
+- Edit Context and Prompt blocks if they're not already filled
+- **Say:** "This is Plan View. Mr. Okafor authors the lesson here. Every block carries a private teacher note. The chat on the right is where he talks with the AI as he builds."
 
 ### 2.3 Add the three reading blocks
-- Click **+ Reading** three times
-- Paste each material from **Beat 3** (Hebergam, Thompson, Engels) — title, body, source line
+- Use the add-block affordance three times to create reading blocks
+- For each, click into the block to open it and paste body + source from **Beat 3**
 - On save, the lesson-scope Backboard assistant indexes each as a document (fire-and-forget per `saveBlockContent` in `actions/teacher.ts`)
-- **Say:** "Each reading is uploaded as a document on the lesson's AI scope. Students and the teacher can RAG it later — but the source of truth is here, in Postgres."
+- **Say:** "Each reading is uploaded as a document on the lesson's AI scope so retrieval can hit it later. The substrate is Postgres; Backboard is retrieval over composed prose."
 
-### 2.4 Add the AI-generated chronology
-- Click **+ AI-generated block**
-- Type a brief prompt like *"chronology from 1760 to Thompson, anchored to the materials"* and let the composer run
-- **Or** paste the curated version from **Beat 4** if the composer isn't wired
-- Edit / regenerate as needed; teacher selects the final version
-- **Say:** "The AI proposed this. Mr. Okafor chose to keep it. He could regenerate, edit, or delete — the substrate records that he selected this version."
+### 2.4 Open the Reading Doc Editor
+- Click into one of the reading blocks → opens `/teacher/lessons/<lesson_id>/reading/<block_id>`
+- TipTap rich-text surface with embedded AI segments (paragraph / chart / diagram)
+- **Say:** "Some readings are plain text. Others — like this one — get AI-augmented with paragraphs, charts, diagrams. The teacher composes the document; the AI helps."
 
-### 2.5 Add the private rubric
-- On the Response block, click **Add teacher note**
-- Paste Expected Dimensions from **Beat 5**
-- **Say:** "This is private. Students never see this. It's what the AI uses to decide which observations are worth surfacing — and what Mr. Okafor uses when he reads."
+### 2.5 Generate Panel — AI paragraph
+- In the Reading Doc Editor, click **Generate**
+- Sub-kind: **paragraph**. Brief: a prompt from **Beat 18** (paragraph row)
+- AI emits a paragraph segment with a non-dismissible provenance footer; drop it at the cursor
+- **Say:** "Provenance footer is always visible. The teacher always knows whether the AI extracted this from the materials or proposed it from the topic."
 
-### 2.6 Publish
-- Save / publish the lesson (depending on UI)
-- Confirm the lesson is visible on the course view
+### 2.6 Generate Panel — chart (the headline data-chart feature)
+- Click **Generate** again; sub-kind: **chart**
+- Brief: chart prompt from **Beat 18** (chart row, e.g. Manchester population growth)
+- Optional: paste teacher-supplied data → marks `data_source.kind = "teacher_supplied"`
+- AI emits a Vega-Lite chart, rendered live via react-vega; provenance footer visible; "Show data" disclosure works
+- **Say:** "This is the data-chart feature. Live Vega-Lite, derived from the materials. The footer tells you who supplied the data; the disclosure lets you audit it."
+
+### 2.7 Generate Panel — diagram
+- Click **Generate**; sub-kind: **diagram**
+- Brief: diagram prompt from **Beat 18** (diagram row)
+- AI emits a diagram segment, dropped at the cursor
+
+### 2.8 ChatPanel — talk with the AI while authoring
+- Back in Plan View, the ChatPanel sits on the right
+- Type an opener from **Beat 20** (e.g., "I'm building a lesson on whether the working class made itself or got made — what am I missing?")
+- AI replies (`sendChatMessage` → `teacher-lesson-chat.ts`); response renders in the thread
+- If the reply carries a **suggested_action** (e.g., `create_block` for a chronology), click **Apply** → `applyChatSuggestedAction` runs; the block appears in the Plan View
+- **Say:** "The teacher stays the author. AI proposes; teacher applies. No silent edits."
+
+### 2.9 Add the private rubric
+- On the Response block's `TeacherNoteSlot`, paste Expected Dimensions from **Beat 5**
+- **Say:** "Private to the teacher. Students never see it. The reading composer reads it when composing what Mr. Okafor sees about each student."
+
+### 2.10 Toggle Preview Mode
+- Click **Preview** at the top of the editor (or `?mode=preview`)
+- Middle column renders the student-facing lesson as `/lesson/<session_id>` would
+- Right column shows the teacher's private notes per block, labeled "not visible to student"
+- **Say:** "This is what the student sees. Mr. Okafor can toggle into the student view at any time; the private notes stay over here."
+
+### 2.11 (Optional) Reorder or delete
+- Drag blocks in the sortable list to reorder (`reorderBlock`)
+- Delete a block via its affordance (`deleteBlock`); or the **Delete lesson** button at the bottom (`deleteLesson`)
 
 ---
 
@@ -95,75 +123,70 @@ If you reach a beat that isn't here, ask in chat — I'll generate the next piec
 - `/login` → click **Maya Chen** card
 - Lands on `/artifacts` (Maya's home)
 
-### 3.2 (Optional) Maya enrolls in the course
-- If Maya isn't auto-enrolled, navigate to `/courses` and click **Enroll** on Industrial Revolution & Modernity
-- If `/courses` doesn't show the course for unenrolled students, switch back to Mr. Okafor and add Maya from the course view's roster section
-
-> ⚠ **UI gap to confirm:** the new-student → course enrollment path. If neither route works, fall back to a manual insert (`insert into course_enrollments values ('<course_id>', 'student_maya')`).
+### 3.2 Maya enrolls in the course
+- Navigate to `/courses`
+- Click **Enroll** on *Industrial Revolution & Modernity* (calls `enrollInCourse`)
 
 ### 3.3 Open Lesson 3
-- From `/courses` or `/artifacts`, click **The Making of the Working Class**
-- A new `session` row gets created (Maya × Lesson 3)
-- Lands on `/lesson/<session_id>`
-- Maya sees: the prompt, the context, three readings in the sidebar, the chronology, an empty response block, the widget palette
+- Click the lesson from the course view, or navigate to `/lesson/start/<lesson_id>`
+- A new `session` row gets created with `working_text = {}`
+- Lands on `/lesson/<session_id>` — three columns:
+  - **Left:** `MaterialsRail` with three readings + chronology
+  - **Middle:** `QuestionPrompt` + the writing surface (three modes — Notes / Draft / Reflection)
+  - **Right:** `AnnotationsRail` (empty for a new session; observations accumulate as Maya submits turns)
 
 ---
 
-## Phase 4 — Maya works through her project (the four sessions)
+## Phase 4 — Maya writes (Notes / Draft / Reflection — four sessions)
 
-**Feature: notes (private workspace), draft response block, four widgets, AI observations with state, teacher annotations.**
+**Features: three-mode writing surface (`sessions.working_text = { notes, draft, reflection }`), auto-saved via `saveWorkingText`, `submitTurn` for LLM ingestion, `AnnotationsRail` chronological observations from past `turn-call`s, teacher-side `submitAnnotation`.**
 
-This phase produces the substrate Mr. Okafor will read in Phase 5. Run it through quickly — most of this is "pre-demo state" you set up before the live audience arrives. Slow down only on Session 4.
+This phase produces the substrate Mr. Okafor reads in Phase 5. Run quickly — most of it is "pre-demo state." Slow down only on Session 4.
+
+The writing surface has three modes the student toggles between:
+- **Notes** — private workspace, raw register, think-out-loud
+- **Draft** — the essay register, polished prose
+- **Reflection** — post-hoc processing ("what changed? what's still open?")
+
+Each mode persists its own text in `sessions.working_text`. **submitTurn** sends the working text through the `turn-call` pipeline, which emits a `next_gap` observation that lands in the AnnotationsRail.
 
 ### 4.1 Session 1 — read Hebergam, write the naïve draft
-
-- Open Material 1 in the sidebar
-- Click **+ Add note** in the private workspace → paste pre-edit Note 1 from **Beat 6**
-- Click into the Response block → paste the "victims of the factory" first draft from **Beat 6**
-- Right-rail surfaces Observation 1 (**Beat 14, row 1**)
-- Maya clicks **Engage** on the observation
-- Click the note → replace content with the rewritten Note 1 from **Beat 6**
-- End session (close the lesson tab, or `/lesson/end` if that route exists)
+- Open Material 1 in the left rail
+- Switch to **Notes** mode → paste pre-edit Note 1 from **Beat 6**
+- Switch to **Draft** mode → paste the "victims of the factory" first draft from **Beat 6**
+- Click **Submit** (calls `submitTurn`) → AnnotationsRail surfaces Observation 1 (**Beat 14, row 1**)
+- Switch back to **Notes** mode → replace with the rewritten Note 1 from **Beat 6** (auto-saves via `saveWorkingText`)
 
 ### 4.2 Session 2 — read Thompson, expand the draft
+- Open Material 2; read in the left rail
+- **Notes:** append Note 2 (**Beat 6**)
+- **Draft:** replace the victims paragraph with Para 1 final; append Paras 2, 3, 4 from **Beat 7**
+- Click **Submit** → AnnotationsRail surfaces Observation 2 (**Beat 14, row 2**)
 
-- Open Material 2; read in sidebar
-- Add Note 2 (**Beat 6**)
-- Edit the Response block: replace the victims paragraph with Para 1 final, append Para 2 + Para 3 from **Beat 7**
-- Drag the **Citation widget** onto Para 3 — paste Hebergam citation fields from **Beat 13**
-- Drag a second Citation onto Para 3 — Factory Act (Beat 13)
-- Append Para 4 (Beat 7)
-- Drag the Thompson Citation onto Para 4
-- Right-rail surfaces Observation 2 (**Beat 14, row 2**)
-- Maya clicks **Dismiss**; types dismissal reason from **Beat 14**
-- End session
+> ⚠ **Today:** observations land in the rail chronologically; there's no Engage / Dismiss button on the card yet (roadmap F2). If you want to demo Maya rejecting the gender observation, narrate it verbally — the dismissal reason from **Beat 14** is the line.
 
-### 4.3 Overnight — Mr. Okafor annotates
-
+### 4.3 Overnight — Mr. Okafor reads and annotates
 - Sign out as Maya → sign in as Mr. Okafor
-- Navigate to `/teacher/student/student_maya`
-- The composed reading composes (it'll be partial, since Maya's still mid-draft)
-- In the **Prompt to student** form at the right, paste Annotation 1 from **Beat 8** (excerpt + body)
-- Click **Send**
+- Open `/teacher/student/student_maya`
+- The composed reading renders (computed by `composeReading` against the substrate so far)
+- In the **Prompt to student** form, paste Annotation 1 from **Beat 8** → **Send** (calls `submitAnnotation`)
 - Sign out
 
 ### 4.4 Session 3 — read Engels, the consciousness shift
-
-- Sign in as Maya
-- Notice the new annotation visible at the top of her view (or in `/memory`)
+- Sign in as Maya; the new annotation is visible (currently surfaced in `/memory`; the in-lesson surfacing is roadmap F14)
 - Open Material 3 (Engels); read
-- Add Note 3 (**Beat 6**) — note the first appearance of "class solidarity"
-- Append Para 5 to the draft (**Beat 7**)
-- Drag the **Claim-with-Support widget** onto the "shift in political consciousness" sentence — paste fields from **Beat 13** (claim filled, support intentionally empty)
-- Append Para 6 (**Beat 7**)
-- End session
+- **Notes:** append Note 3 (**Beat 6**) — first appearance of "class solidarity"
+- **Draft:** append Para 5 (**Beat 7**)
+- Click **Submit** → AnnotationsRail accumulates
+- **Draft:** append Para 6 (closing question)
 
 ### 4.5 Today (Session 4) — the live demo lands here
-
-- (Before the live demo:) sign in as Mr. Okafor, add Annotation 2 (**Beat 8**), sign out
-- (Right before the audience watches:) sign in as Maya, place cursor at end of draft, add Note 4 (**Beat 6**)
-- Two fresh observations surface in the right rail: Observation 3 and Observation 4 (**Beat 14, rows 3 and 4**)
-- **The live demo continues from here.** Don't engage Obs 4 yet — that's the headline beat in Phase 6.
+- (Before live demo:) Mr. Okafor signs in, adds Annotation 2 (**Beat 8**), signs out
+- (Right before audience:) sign in as Maya
+- Switch to **Reflection** mode (or **Notes** if Reflection's affordance isn't yet labeled — F12)
+- Type Note 4 from **Beat 6**
+- Click **Submit** → AnnotationsRail surfaces fresh observations (use **Beat 14, rows 3 and 4** as the script of what the AI should ideally surface)
+- **The live demo continues from here.** Phase 6 is the headline.
 
 ---
 
@@ -180,7 +203,7 @@ This phase produces the substrate Mr. Okafor will read in Phase 5. Run it throug
 - Class summary at the top (**Beat 11**)
 - **Talking point** from Beat 19, 0:00–0:30
 
-> ⚠ **UI gap:** charts (Beat 18) may not yet be rendered. If not, gesture at them: "the class view will show a coverage chart against the expected dimensions — Maya hits three of four; the weakest cohort dimension is engaging the counter-reading."
+> ⚠ **Today:** charts on the *dashboard* aren't built. Charts live in the Reading Doc Editor (Beat 18). The cohort-coverage chart described in **Beat 18, Chart 2** is a roadmap item (depends on F6's class-summary composer wiring). If you want to nod at it, gesture verbally.
 
 ### 5.3 Click Maya's card
 - `/teacher/student/student_maya`
@@ -195,30 +218,27 @@ This phase produces the substrate Mr. Okafor will read in Phase 5. Run it throug
 
 ## Phase 6 — The live student moment (1:00–2:15)
 
-**Feature: student canvas, AI observations as ready-to-hand peripherals, cross-document observation, comparison widget, counter-argument widget.**
+**Features: three-mode writing surface, AnnotationsRail (chronological observations from past `turn-call`s), Reflection mode as the "respond to this" register.**
 
 ### 6.1 Switch to Maya's view
 - Sign in as Maya (or use a parallel browser tab)
-- Lands on `/lesson/<session_id>` with the draft, sources, notes, and right-rail observations visible
+- Lands on `/lesson/<session_id>` with the Draft visible, materials in the left rail, AnnotationsRail on the right showing the fresh observations
 
 ### 6.2 Frame the surface
 - **Talking point** from Beat 19, 1:00–1:30: "This is what Maya sees. Her draft, her sources, her notes. The AI is not in the foreground."
 
 ### 6.3 Land on Observation 4 (class solidarity)
-- The right rail shows two fresh observations
-- Hover/click Observation 4 — the cross-document one
+- The AnnotationsRail shows the cross-document observation as the most recent card
+- The prompt itself names both surfaces (notes ↔ draft) — read it in place
 - **Talking point** from Beat 19, 1:30–2:15
 
-### 6.4 Engage the observation
-- The **Comparison widget** surfaces with the two passages side-by-side:
-  - Notes excerpt: "This feels like class solidarity vs. class condition."
-  - Draft observation: the phrase doesn't appear anywhere in the essay
-- Layout per **Beat 13** (Comparison widget shape)
-
-### 6.5 Maya drops a Counter-Argument widget into the draft
-- Drag the **Counter-Argument widget** onto the Thompson paragraph
-- Paste fields from **Beat 13** — position, counter, response (response empty initially; fills in live to show the activity is Maya's)
+### 6.4 Maya responds in Reflection mode
+- Switch to **Reflection** mode in the writing surface
+- Type a short response in Maya's voice — why did "class solidarity" stay in the notes? Does she want it in the draft now? (Use the sample from **Beat 13, Reflection mode** as a guide)
+- Click **Submit** → a new turn lands, AnnotationsRail may surface a follow-up
 - **Say:** "The activity of reasoning stays Maya's. The system makes it tractable."
+
+> ⚠ **Today:** the auto-opening side-by-side comparison surface (notes excerpt + draft passage rendered together when Maya clicks a cross-document observation) is roadmap F3. The cross-document beat today lands through the *prompt text itself* — the AI's question already names both surfaces.
 
 ---
 
@@ -247,14 +267,16 @@ This phase produces the substrate Mr. Okafor will read in Phase 5. Run it throug
 
 ---
 
-## Phase 8 — Progression view + close (2:45–3:00)
+## Phase 8 — Composed reading as the across-time artifact + close (2:45–3:00)
 
-**Feature: across-time progression composer, sentence-anchored provenance across sessions.**
+**Features: composed teacher's reading carries the trajectory in its RESOLVED section. Progression view is roadmap.**
 
-### 8.1 Open the progression view
-- From `/teacher/student/student_maya`, switch tab to **Progression** (or navigate to `/progression?student=maya`)
-- The narrative composes (**Beat 10**)
+### 8.1 Re-open the composed reading
+- From `/teacher/student/student_maya`, walk back through the four-part reading
+- Highlight the RESOLVED section in particular — it carries the across-time trajectory
 - **Talking point** from Beat 19, 2:15–2:45
+
+> ⚠ **Today:** `/progression` 404s; persisted across-time narratives (Beat 10) are roadmap F7. `progressions` table and `composeProgression` action exist, but the route doesn't. Until F7 lands, the composed reading's RESOLVED section is the current substitute — it carries the trajectory in prose.
 
 ### 8.2 Close on the class view
 - Back to `/teacher`
@@ -263,19 +285,47 @@ This phase produces the substrate Mr. Okafor will read in Phase 5. Run it throug
 
 ---
 
-## Known UI gaps / fallbacks
+## What's there today vs. on the roadmap
 
-Track these going in. If a beat doesn't render, drop to the listed fallback rather than improvising.
+Honest state of the app, by feature. Roadmap items match `demo/build-prompts.md` (F1–F15) for delegation.
 
-| Surface | Likely behavior | Fallback |
-|---|---|---|
-| Auto-enrollment for new students | May not exist; `/courses` may filter to enrolled-only | Manually enroll via teacher view or a SQL insert |
-| Live AI observation pipeline | May be stubbed; observations may not fire from typing | Insert Observation rows manually, or have a teacher action that surfaces a pre-authored observation |
-| Comparison widget side-by-side render | May need both anchors (notes + draft) wired to be live | Type Beat 13's comparison content into the widget by hand |
-| Composer LLM calls | May be stubbed | Paste Beat 16/17 outputs into the resulting artifact view |
-| Data charts (Beat 18) | May not be implemented yet | Verbal walkthrough; sketch on whiteboard if needed |
-| `/lesson/start` | Returned 404 in last probe; likely needs `?lesson_id=…` query param | Navigate via course view's lesson list instead |
-| Memory page populated | Requires Backboard threads created during work; may be empty for new student | Show the teacher-side composed reading instead — that's the load-bearing demo |
+### ✅ Working today
+- Login picker (Mr. Okafor + Maya); signup flow at `/signup`
+- Course creation form + enrollment (`createCourse`, `enrollInCourse`)
+- Lesson editor Plan View — sortable block list, block cards, private-note slot, delete-block, delete-lesson, **Preview Mode** toggle
+- Reading Doc Editor (TipTap) with **Generate Panel** — paragraph / chart / diagram, each with provenance footer and "Show data" disclosure
+- Real Vega-Lite charts via react-vega in reading docs (this IS the data-chart feature)
+- **ChatPanel** on the lesson editor — teacher↔AI chat, suggested-action one-click apply (`sendChatMessage`, `applyChatSuggestedAction`)
+- Three-mode student writing surface (Notes / Draft / Reflection) with `saveWorkingText` auto-save + `submitTurn` LLM ingestion
+- `AnnotationsRail` surfacing observations chronologically from `turn-call`
+- Composed teacher's reading via `composeReading` action on `/teacher/student/[id]`
+- Teacher annotations via `submitAnnotation`
+- Video blocks via `saveVideoUrl` + `VideoPlayer`
+
+### 🚧 Roadmap (see `demo/build-prompts.md`)
+| Feature | Build prompt |
+|---|---|
+| Widget palette (Citation / Claim-with-Support / Counter-Argument / Comparison) on the student surface | F1 |
+| Engage / Dismiss state on AnnotationsRail observations | F2 |
+| Auto-opening cross-document comparison surface when engaging a cross-document observation | F3 |
+| Sentence / paragraph anchors on observations | F4 |
+| Refresh button on the composed reading | F5 |
+| Class-summary composer wired to the dashboard (currently hardcoded copy) | F6 |
+| `/progression` route (persisted across-time narrative) | F7 |
+| Preview Mode polish | F8 |
+| Chat suggested-action round-trip polish | F9 |
+| Generate Panel — three sub-kinds end-to-end | F10 |
+| Chart provenance footer mandatory everywhere | F11 |
+| Reflection mode visible affordance | F12 |
+| Material-dwell tracking as substrate events | F13 |
+| Student-side annotation lifecycle (open → received → responded) | F14 |
+| Destructive-action confirms | F15 |
+
+### Fallbacks if a "working today" beat misfires live
+- ChatPanel doesn't reply → paste the expected reply from **Beat 20** into the thread
+- Generate Panel hangs → paste the segment manually using **Beat 18** values
+- `composeReading` returns empty → paste **Beat 9** content into the page
+- AnnotationsRail empty after submit → narrate the expected observation from **Beat 14**
 
 ---
 
@@ -579,81 +629,46 @@ The response block has *think-out-loud enabled*. Maya uses it for unedited strea
 
 ---
 
-## Beat 13 — The four widgets (palette in the response block)
+## Beat 13 — The three writing modes (Notes / Draft / Reflection)
 
-What Maya types into each. Locked at four kinds: **Citation · Claim-with-Support · Counter-Argument · Comparison**.
+The student writing surface has three modes. Each persists its own text in `sessions.working_text`. Notes is the think-out-loud register; Draft is the essay register; Reflection is the post-hoc / respond-to-this register.
 
-### Citation widget
+### Notes mode — sample (Session 3, Maya's voice)
 
-```
-Source:   Hebergam testimony, Sadler Committee 1832
-Label:    Primary source · UK Parliamentary Papers
-Anchor:   "The Sadler Committee testimony of Joseph Hebergam..."
-Note:     Page-cited; abridged but Hebergam's specific testimony is intact.
-```
+Same as **Beat 6, Note 3**:
 
-### Claim-with-Support widget
+> Engels makes the opposite case from Thompson basically. For Engels the workers are products. For Thompson they're agents. Both are looking at roughly the same period. So how do they disagree? I think it's about consciousness — Engels thinks the structure makes the class whether the workers know it or not, Thompson thinks the class only exists once the workers see themselves that way. This feels like class solidarity vs. class condition. Need to think about which one I'm arguing for.
 
-The one Maya has placed but not completed.
+### Draft mode — sample (Session 3, paragraph 5)
 
-```
-Claim:    Shift in political consciousness made the Factory Act possible.
-Support:  (intentionally empty — Maya hasn't yet warranted the claim)
-Anchor:   "This shift in political consciousness is what made the Factory Act possible."
-```
+Same as **Beat 7, Para 5**:
 
-The empty Support field is the architectural signal: the system makes the gap visible, the system does not fill it.
+> This shift in political consciousness is what made the Factory Act possible. Workers didn't just suffer; they organized. They wrote pamphlets and marched and went on strike. They began to understand themselves as having something in common with workers in other towns and other trades. By 1832 there was something that could be called a working class — not just a lot of poor people, but a group with a shared identity and shared political demands.
 
-### Counter-Argument widget
+### Reflection mode — sample (Session 4, live response to Observation 4)
 
-The one Maya hasn't used yet — this is the demo's resolution beat.
+In response to "in your notes you used 'class solidarity' — but your essay doesn't use that term":
 
-```
-Position you are defending:
-  The working class created itself through political consciousness (Thompson).
+> I think I dropped "class solidarity" because it felt like jargon that didn't fit the formal register of the essay. But the more I look at it, the more I realize the phrase is doing real work in my notes that "shared identity" isn't quite carrying in the draft. Class solidarity is what Thompson's workers HAD by 1832 — not just a recognition of shared situation, but a commitment to act on it. I should add it. Maybe in paragraph 5.
 
-The strongest counter you can state:
-  The factory system created the working class through its iron logic,
-  whether or not workers understood themselves as such (Engels).
-
-Your response to the counter:
-  (empty — this is what Mr. Okafor's second annotation is asking her to fill)
-```
-
-### Comparison widget
-
-Side-by-side passages, with the student naming what differs.
-
-```
-Passage A — Thompson (1963):
-  "The economic conditions were the soil. The class was the plant.
-   Soil does not grow itself; the plant does that work."
-
-Passage B — Engels (1845):
-  "The factory system creates the proletariat by stripping workers of the
-   property, the craft skills, and the village ties that once gave them
-   an independent footing."
-
-What's different:
-  For Thompson, the workers' activity is the formation of the class.
-  For Engels, the workers' position is given by the structure;
-  their activity is downstream of it.
-```
+> ⚠ **Roadmap (F1):** the widget palette — Citation, Claim-with-Support, Counter-Argument, Comparison — is design-doc, not built. When built, widgets will drop into Draft (or Reflection) mode as structured callouts that anchor to specific sentences/paragraphs. Until then, the three writing modes carry all the load: Notes for the raw move, Draft for the polished register, Reflection for the response to an AI observation.
 
 ---
 
 ## Beat 14 — The four AI observations (verbatim)
 
-For reference and for typing into the UI as observations surface.
+For reference and for typing/fallback when observations should surface.
 
-| # | When | State | Anchor | Prompt |
-|---|---|---|---|---|
-| 1 | Session 1 | engaged | First draft paragraph ("victims of the factory…") | Victims of what, exactly? Of the machines, the owners, the system, the times? Different answers point at different arguments. |
-| 2 | Session 2 | dismissed | Thompson paragraph | Your draft is focused on male factory workers. Women were a substantial part of the textile workforce — does your argument account for them, or is it about a subset? |
-| 3 | Session 4 (today) | fresh | Paragraph 2 sentence: "Something changed in how they understood their situation" | You write "something changed in how they understood their situation" — what is that change, exactly? Can you name it? |
-| 4 | Session 4 (today) | fresh | Cross-document: notes ↔ draft | In your notes you used the phrase "class solidarity" — but your essay doesn't use that term anywhere. Was that deliberate, or did you leave it out without noticing? |
+| # | Surfaced after | Should anchor to | Prompt |
+|---|---|---|---|
+| 1 | Session 1 submit | First draft paragraph ("victims of the factory…") | Victims of what, exactly? Of the machines, the owners, the system, the times? Different answers point at different arguments. |
+| 2 | Session 2 submit | Thompson paragraph | Your draft is focused on male factory workers. Women were a substantial part of the textile workforce — does your argument account for them, or is it about a subset? |
+| 3 | Session 4 submit | Paragraph 2 sentence: "Something changed in how they understood their situation" | You write "something changed in how they understood their situation" — what is that change, exactly? Can you name it? |
+| 4 | Session 4 submit | Cross-document: notes ↔ draft | In your notes you used the phrase "class solidarity" — but your essay doesn't use that term anywhere. Was that deliberate, or did you leave it out without noticing? |
 
-**Maya's dismissal reason for Observation 2** (preserved on the surface, visible to the teacher):
+> ⚠ **Today:** AnnotationsRail shows these chronologically; no per-observation `fresh / engaged / dismissed` state badges (roadmap F2). Sentence/paragraph anchors aren't structured yet (roadmap F4). Narrate Maya's reactions verbally.
+
+**Maya's narrated dismissal reason for Observation 2** (will be a stored field once F2 lands; for now, say it):
 
 > I want to focus on Thompson's argument about consciousness — gender is important but it's not what this essay is about.
 
@@ -762,60 +777,64 @@ For an in-class share-out. Eight slides.
 
 ---
 
-## Beat 18 — Data charts (derived from substrate, never LLM-composed)
+## Beat 18 — Generate Panel prompts (paragraph / chart / diagram)
 
-Charts are *queries against Postgres rendered as visualizations* — never LLM-supplied conclusions. Three for the demo.
+The Reading Doc Editor has a Generate Panel with three sub-kinds. Each emits a segment with a non-dismissible provenance footer (`teacher_supplied` / `ai_extracted_from_text` / `ai_proposed_from_topic`). The data-chart feature is real — live Vega-Lite via react-vega, with the data queryable via a "Show data" disclosure.
 
-### Chart 1 — Vocabulary in Maya's notes vs. draft
+### Paragraph generation — prompts
 
-The headline visual for the cross-document beat. ASCII mockup of the rendered chart:
+For the Hebergam reading, expand on the historical context:
 
-```
-                         NOTES       DRAFT
-  conditions               ●           ●
-  consciousness            ●           ●
-  class solidarity         ●           ○   ← in notes, missing from draft
-  victims                  ●           ○   ← present in pre-edit, edited out
-  agency                   ●           ●
-  structure (Engels)       ●           ○   ← read but not engaged
-```
+> A short paragraph on the Sadler Committee's wider role in 1832 — who served, what kinds of testimony they collected, why the report mattered. Anchor to the materials I already have.
 
-**Reads as:** vocabulary in Maya's thinking but not in her writing is the productive next move.
+For the Thompson reading, surface the methodological move:
 
-### Chart 2 — Cohort coverage of expected_kinds for Lesson 3
+> One paragraph explaining what Thompson means by "making" — is it gradual? agentive? both? Stay close to the soil-and-plant metaphor.
 
-Per student × the four dimensions Mr. Okafor's private rubric tracks.
+For the Engels reading, set up the dialectic:
 
-```
-                  conditions  consciousness  primary  counter
-  Maya Chen           ●            ●            ●        ○
-  Jordan Park         ●            ●            ●        ●
-  Amir Hassan         ●            ○            ○        ○
-  Sofia Reyes         ●            ●            ●        ○
-  Tom Nguyen          ●            ●            ●        ●
-  Priya Mehta         ●            ○            ○        ○
-  Ben Carter          ●            ●            ●        ○
-  Nia Williams        ●            ●            ●        ●
-```
+> One paragraph on Engels's circumstances in Manchester 1842–44 — what he was doing there, who he was reading, why his observations have the texture they do.
 
-**Reads as:** counter-reading-engaged is the cohort's weakest dimension. Five students need to be pushed on Engels next.
+Expect the AI to mark the source as `ai_extracted_from_text` if the prompt grounds in existing materials, or `ai_proposed_from_topic` (with caveat banner) if it reached beyond them.
 
-### Chart 3 — Project depth across the unit (per student × lesson)
+### Chart generation — prompts
 
-For the class-view shot at the demo's open.
+For the chronology block, illustrate urban growth:
 
-```
-   Lesson:    1     2     3     4     5     6
-  Maya       ✓     ✓     ●     -     -     -      (mid-project on L3)
-  Jordan     ✓     ✓     ●     -     -     -
-  Amir       ✓     ●     -     -     -     -      (still on L2)
-  Sofia      ✓     ✓     ●     -     -     -
-  ...
+> Bar chart: Manchester population at four points — 1771, 1801, 1821, 1831. Data values: 25k, 75k, 108k, 142k. Treat this as teacher-supplied data.
 
-  ●  active project    ✓  completed    -  not yet started
-```
+Produces a Vega-Lite bar chart. Provenance footer reads "Teacher-supplied data."
 
-**Other chart types available — ask.** Observation engagement rates per student, citation density over time, stage-distribution pie, substrate node-count timeline by role.
+For an AI-proposed chart with caveat:
+
+> Line chart showing the growth of trade union membership in England, 1800–1850. If the materials don't carry the data, propose plausible illustrative numbers and mark the caveat.
+
+Produces a chart with `ai_proposed_from_topic` provenance and a non-dismissible caveat banner ("AI-proposed illustrative data — verify before assigning").
+
+For a chart pulled from the materials:
+
+> A pie chart of the four expected dimensions in the private rubric for this lesson — conditions, consciousness, primary source, counter. Mark each one's importance equally (placeholder); pull the dimension labels from the rubric.
+
+Produces a chart with `ai_extracted_from_text` provenance, citing the rubric/teacher_note source.
+
+### Diagram generation — prompts
+
+For the conditions-vs-consciousness tension:
+
+> A two-column diagram showing the disagreement between Thompson and Engels — left column "conditions / structure" (Engels), right column "activity / consciousness" (Thompson), arrows showing where they agree on facts but split on direction of causation.
+
+For the chronology:
+
+> A horizontal timeline from 1760 to 1850, marking: factory system (1760s), Combination Acts (1799), Luddism (1811–17), Peterloo (1819), Reform Act + Sadler Committee (1832), Factory Act (1833), Chartism (1838), Engels's observations (1842–44).
+
+### What the provenance footer carries
+
+Three kinds, always visible:
+- **Teacher-supplied data** — teacher pasted values into the data field. Highest trust.
+- **AI extracted from <source>** — pipeline pulled data from a specific material in the lesson. Footer cites the source.
+- **AI-proposed illustrative data** — model invented plausible numbers because the materials didn't carry them. Mandatory caveat banner. The "Show data" disclosure lets the teacher audit before assigning.
+
+The "Show data" disclosure is required on every chart — every AI-generated visualization is queryable for its underlying numbers. That's what keeps charts as auditable substrate-derivable artifacts rather than LLM-supplied conclusions.
 
 ---
 
@@ -849,7 +868,7 @@ The camera lands on Observation 4 — the cross-document one.
 
 > "Watch what the AI is doing. It's not telling Maya what to write. It's noticing that she used a phrase in one place and didn't pick it up in another, and it's asking her whether that was deliberate. Maya now has to decide. The next move is hers."
 
-Maya engages the observation. The comparison widget surfaces the two passages side-by-side. Maya types into a new claim-with-support widget.
+Maya reads the prompt — the AI has named the cross-document gap in plain English. Maya switches to Reflection mode and starts to answer: why did "class solidarity" stay in the notes? Does she want it in the draft now?
 
 > "The activity of reasoning stays Maya's. The system makes it tractable."
 
@@ -867,6 +886,49 @@ Back to the class view. Implied scale: thirty students, six lessons, one course.
 
 ---
 
+## Beat 20 — ChatPanel prompts (teacher ↔ AI authoring chat)
+
+The lesson editor's ChatPanel is where Mr. Okafor talks with the AI while building. Replies sometimes carry a structured `suggested_action` (e.g., `create_block`, `tighten_block`) the teacher applies with one click. Thread persists in `teacher_chats`.
+
+### Opening prompts — getting the lesson scoped
+
+> I'm building a lesson on whether the working class made itself or got made. I have three materials in mind: Hebergam testimony, Thompson, Engels. What am I missing?
+
+Expected reply shape (illustrative):
+> *Two things to push on. First — students often flatten the timeline between Hebergam's 1832 testimony and Engels's 1845 observations as if they're the same moment, when they're actually a decade apart with the Factory Act in between. Consider an `ai_generated` chronology block. Second — your current materials are all written by or about adult male workers. If your private rubric values engagement with how "the working class" is contested, you may want a fourth source on women in textile mills.*
+>
+> ▶ Suggested action: **Create an `ai_generated` chronology block** [Apply]
+
+### Refining prompts — the iterative pass
+
+> The Engels excerpt I have is good but too short — students miss the structural argument. Can you tighten the condensed version while keeping it under 200 words?
+
+> What's the strongest counter to a student arguing "both Thompson and Engels are right in their own way"? I want my private rubric to capture that hedge as the weakest move.
+
+### Refresh / regenerate prompts
+
+> Regenerate the chronology to emphasize political organizing — Luddism, Peterloo, Chartism — rather than population growth and mechanization.
+
+> The current context block is too long. Cut it in half and keep the bit about taking the harder reading seriously.
+
+### Suggested-action affordances the AI may surface
+
+- `create_block` — add a new block of a given type at a given position
+- `regenerate_segment` — re-roll an AI-generated segment in a reading
+- `tighten_block` — shorten an existing block's content
+- `add_teacher_note` — surface a private pedagogy note on a specific block
+
+Each surfaces with a one-click **Apply** button. Applying runs `applyChatSuggestedAction`; the lesson editor revalidates; the change appears in Plan View.
+
+### The voice the AI uses
+
+- Observational, not directive — "students often flatten X" rather than "you should add Y"
+- References the materials and the rubric by name when proposing changes
+- Surfaces tensions rather than resolving them
+- Never edits the lesson silently — always proposes via a suggested action the teacher applies
+
+---
+
 ## On-demand riffs
 
 When a beat below isn't pre-written, ask in chat with: surface, voice, and length.
@@ -874,8 +936,9 @@ When a beat below isn't pre-written, ask in chat with: surface, voice, and lengt
 - **Other lessons in the unit** — Origins (Why Britain), Factory System, Empire and Industry, Responses (Chartism / Luddism / 1848), Industrial Modernity and Its Discontents.
 - **A different student's voice** — emerging / developing / connecting; what their notes and drafts sound like at each stage.
 - **A new AI observation, mid-demo** — student just typed X; what does the observer ask?
+- **A new ChatPanel exchange** — teacher asks Y, AI proposes Z as a suggested action.
+- **A new Generate Panel prompt** — for any of paragraph / chart / diagram, in any reading.
 - **A teacher artifact** — handout, scaffold, discussion-prompt, feedback letter, mini-lecture, exemplar, rubric, worksheet, assessment.
 - **A student artifact** — study guide, presentation, essay draft, test prep, outline.
-- **A new data chart** — observation engagement rates, citation density, stage distribution, vocabulary evolution.
 - **A backboard recall** — what the per-student or per-lesson assistant returns for a given query.
-- **Voice palette** — *teacher private* (Mr. Okafor's pedagogy notes), *teacher to student* (annotation voice), *student first-person* (Maya's notes), *student think-out-loud* (unedited stream), *student draft prose* (the essay register), *AI observational* (question, never directive).
+- **Voice palette** — *teacher private* (Mr. Okafor's pedagogy notes), *teacher to student* (annotation voice), *teacher ↔ AI chat* (collegial, observational), *student first-person* (Maya's notes), *student think-out-loud* (unedited stream), *student draft prose* (the essay register), *student Reflection* (post-hoc, responding to an observation), *AI observational* (question, never directive).

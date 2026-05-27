@@ -5,8 +5,8 @@
 //
 //   - panel / panelWarm — lifted card surfaces (white / warm off-white)
 //   - textDisabled       — placeholder + dim states
-//   - stage              — emerging / developing / connecting badges
-//                          (soft violet / forest green / warm amber)
+//   - stage              — BC proficiency scale badges
+//                          (emerging / developing / proficient / extending / ie)
 //   - ai                 — olive accent for the system's voice
 //   - good               — positive observation block
 //   - flag (re-shaped)   — the "missing warrant / gap" surface
@@ -64,14 +64,16 @@ export const tokens = {
     text:   "#1A5C2A",
   } as const,
 
-  // ── stage badges ──────────────────────────────────────────────────────
+  // ── stage badges (BC Provincial Proficiency Scale) ────────────────────
   // Soft, single-pill chips that read at a glance on a class dashboard.
-  // emerging / developing / connecting are the three values; the schema
-  // matches (students.stage check constraint).
+  // Five values; schema check constraint matches (students.stage).
+  // Teacher-assigned only — AI prompts must not author this categorization.
   stage: {
     emerging:   { bg: "#EDE9FC", text: "#4A3AA0" },
     developing: { bg: "#E0F4E8", text: "#1A6040" },
-    connecting: { bg: "#FFF0D0", text: "#7A4810" },
+    proficient: { bg: "#FFF0D0", text: "#7A4810" },
+    extending:  { bg: "#D4ECEC", text: "#0A4848" },
+    ie:         { bg: "#E8E2D6", text: "#5A5040" },
   } as const,
 
   shadow: "0 1px 6px rgba(0,0,0,0.06)",
@@ -92,3 +94,14 @@ export const tokens = {
 
 export type Tokens = typeof tokens;
 export type Stage = keyof typeof tokens.stage;
+
+// BC Provincial Proficiency Scale — display labels for the stage chip.
+// 'ie' = Insufficient Evidence (capitalized per provincial convention);
+// the others title-case naturally.
+export const STAGE_LABEL: Record<Stage, string> = {
+  emerging: "Emerging",
+  developing: "Developing",
+  proficient: "Proficient",
+  extending: "Extending",
+  ie: "IE",
+};

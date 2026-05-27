@@ -1,2 +1,445 @@
 
 == 1. /login (root redirect) ==
+URL: http://localhost:3000/login
+Title text: Paideia
+[screenshot] 01-login
+
+== 2. Sign in as Mr. Okafor ==
+URL after sign-in: http://localhost:3000/teacher
+[screenshot] 02-teacher-dashboard-empty
+Dashboard text (truncated):
+P
+○
+CLASS
+≡
+LESSONS
+∿
+MEMORY
+Paideia
+CLASS
++ NEW LESSON
+0 STUDENTS · 0 FLAGGED
+Mr. Okafor
+▾
+All
+Flagged
+Emerging
+Developing
+Proficient
+Extending
+IE
+◆ CLASS SUMMARY
+◆
+
+No class summary yet — click Refresh to compose one from the cohort's readings.
+
+REFRESH →
+
+No students match this filter.
+
+== 3. /teacher/courses/new ==
+[screenshot] 03-course-new-form
+URL after course create: http://localhost:3000/teacher/lessons/new
+[screenshot] 04-after-course-create
+
+== 4. /teacher/lessons/new ==
+[screenshot] 05-lesson-new-form
+URL after lesson create: http://localhost:3000/teacher/lessons/lesson_68d5a577/edit
+Captured lesson id: lesson_68d5a577
+[screenshot] 06-lesson-edit-initial
+
+== 4b. confirm course visible on /teacher ==
+[screenshot] 07-teacher-dashboard-after-create
+Dashboard after course create:
+P
+○
+CLASS
+≡
+LESSONS
+∿
+MEMORY
+Paideia
+DEMO AUDIT COURSE
+· TEST · SPRING 2026
++ NEW LESSON
+0 STUDENTS · 0 FLAGGED
+Mr. Okafor
+▾
+All
+Flagged
+Emerging
+Developing
+Proficient
+Extending
+IE
+◆ CLASS SUMMARY
+◆
+
+No class summary yet — click Refresh to compose one from the cohort's readings.
+
+REFRESH →
+
+No students match this filter.
+
+== 5. Add Reading block ==
+[screenshot] 08-after-add-reading
+Reading area snippet: <html lang="en" class="dm_serif_display_9eeef4bd-module__5mew4G__variable eb_garamond_a56d13cf-module__NYjLxq__variable syne_ac2aa1d1-module__60NWHq__variable h-full antialiased"><head><link rel="stylesheet" href="/_next/static/chunks/%5Broot-of-the-server%5D__0uiko53._.css" data-precedence="next_static/chunks/[root-of-the-server]__0uiko53._.css"><link rel="preload" as="script" fetchpriority="low"
+
+== 5b. Click into reading block / look for editor ==
+Reading editor link: /teacher/lessons/lesson_68d5a577/reading/blk_383a693b
+[screenshot] 09-reading-editor
+Reading editor text (truncated):
+P
+○
+CLASS
+≡
+LESSONS
+∿
+MEMORY
+← COMPOSER
+Paideia
+READING
+· AUDIT LESSON 1 · SOURCE · UPLOAD PDF OR PASTE EXCERPT
+◆ INSERT AI SEGMENT
+EDITS AUTOSAVE
+
+
+
+
+EDITS SAVE AUTOMATICALLY AFTER A BRIEF PAUSE.
+← BACK TO COMPOSER
+Generate-related buttons: ◆ Insert AI segment
+Clicked generate button: ◆ Insert AI segment
+[screenshot] 10-reading-generate-panel
+
+== 6. Add Video block ==
+[screenshot] 11-after-add-video
+Video block input found: <input placeholder="https://www.youtube.com/watch?v=…" type="url" value="" name="url" style="width: 100%; padding: 6px 0px; font-size: 12px; color: rgb(26, 22, 16); background: transparent; border-width: medium medium 1px; border-style: none none solid; border-color: currentcolor currentcolor rgb(20
+[screenshot] 12-video-block-with-url
+
+== 7. Add AI-generated block ==
+[screenshot] 13-after-add-ai-generated
+
+== 8. Inspect add buttons row ==
+Add buttons present: ["+ Add private note","+ Add private note","+ Add private note","+ Add private note","+ Add private note","+ Context","+ Reading","+ Video","+ Prompt","+ Quiz","+ ◆ AI Generated"]
+
+== 9. ChatPanel — send chronology proposal ==
+Chat textarea placeholder: e.g. background paragraph on the political situation in 1788
+Typed into chat textarea (placeholder): Ask about this lesson…
+[screenshot] 14-chat-message-typed
+Clicked send-like button: Send
+[screenshot] 15-chat-after-reply
+Chat panel content (truncated):
+
+Suggested-action buttons present: ["+ Add private note","+ Add private note","+ Add private note","+ Add private note","+ Add private note","+ Context","+ Prompt","+ ◆ AI Generated"]
+Applied chat suggested action: null
+[screenshot] 16-chat-action-applied
+
+== 9b. Observational chat message ==
+[screenshot] 17-chat-observational-reply
+Body tail after 2nd msg:
+P
+○
+CLASS
+≡
+LESSONS
+∿
+MEMORY
+← CLASS
+Paideia
+LESSON COMPOSER
+· AUDIT LESSON 1
+PLAN VIEW
+PREVIEW →
+✕ DELETE LESSON
+PUBLISH LESSON
+Mr. Okafor
+▾
+LESSON
+Audit Lesson 1
+Demo Audit Course · Test
+0 students enrolled
+BLOCKS
+01
+Context
+02
+◆ Prompt
+03
+Reading
+04
+Video / Transcript
+05
+◆ AI Generated
+⋮⋮
+CONTEXT
+Frame for the student · edit before publish
+SAVE
++ ADD PRIVATE NOTE
+✕ DELETE
+⋮⋮
+◆ PROMPT
+Students see this as the lesson's central question
+SAVE
++ ADD PRIVATE NOTE
+✕ DELETE
+⋮⋮
+READING · LONG-FORM
+empty
+
+No content yet. Open the editor to write the reading or insert AI-generated segments.
+
+OPEN EDITOR →
++ ADD PRIVATE NOTE
+✕ DELETE
+⋮⋮
+VIDEO · MP4
+SAVE
++ ADD PRIVATE NOTE
+✕ DELETE
+⋮⋮
+◆ AI GENERATED · EMPTY
+Generate a paragraph, chart, or diagram for the student to read.
+PARAGRAPH
+CHART
+DIAGRAM
+GENERATE PARAGRAPH
++ ADD PRIVATE NOTE
+✕ DELETE
++ CONTEXT
++ READING
++ VIDEO
++ PROMPT
++ QUIZ
++ ◆ AI GENERATED
+◆ TALK ABOUT THIS LESSON
+✕
+
+Ask about this lesson — what's missing, what to add, what a counter-position would look like. Suggestions you accept are inserted as blocks; you stay the author.
+
+⌘↵ TO SEND
+SEND
+
+== 10. /teacher/student/student_maya ==
+[screenshot] 18-teacher-student-maya-empty
+Teacher student page (truncated):
+P
+○
+CLASS
+≡
+LESSONS
+∿
+MEMORY
+Paideia
+MAYA CHEN
+· STUDENT DETAIL · TEACHER VIEW
+Mr. Okafor
+▾
+← BACK
+0 students
+Maya Chen
+
+No completed reading yet.
+
+◆ ACROSS-TIME READING
+OPEN →
+◆ OBSERVATIONS
+
+No observations yet — composer will fill these once the student has a session.
+Refresh-like controls on student page: []
+
+== 11. /teacher/memory ==
+[screenshot] 19-teacher-memory
+Teacher memory page (truncated):
+P
+○
+CLASS
+≡
+LESSONS
+∿
+MEMORY
+← CLASS
+Paideia
+MR. OKAFOR
+· MEMORY
+Mr. Okafor
+▾
+What you've noticed across the class
+
+Annotations you send to students are captured here. Your reading of patterns across the cohort accumulates as you work.
+
+Memory layer is currently unreachable. Postgres holds the ground truth, but cross-class observations can't be read right now.
+
+== 12. /progression/student_maya ==
+Progression HTTP status: 200
+[screenshot] 20-progression-student-maya
+Progression page (truncated):
+← STUDENT
+Paideia
+PROGRESSION
+· MAYA CHEN · TEACHER VIEW
+0 SESSIONS
+Mr. Okafor
+▾
+Maya Chen
+ACROSS THE COURSE
+
+Not enough work yet to compose progression. Across-time reading needs at least two sessions to compare.
+
+== 13. Sign out / switch to Maya ==
+Sign out element clicked: null
+[screenshot] 21-login-picker-after-signout
+URL after Maya sign-in: http://localhost:3000/artifacts
+[screenshot] 22-maya-home-artifacts
+Maya /artifacts (truncated):
+Paideia
+MAYA CHEN
+· YOUR WORK
+Maya Chen
+▾
+Nothing here yet.
+
+Enroll in a course to see its lessons here. Sessions, explorations, and notes will appear as you work.
+
+BROWSE COURSES →
+
+== 14. /courses (student) ==
+[screenshot] 23-courses-list
+Courses page (truncated):
+Paideia
+MAYA CHEN
+· COURSES
+Maya Chen
+▾
+Available courses
+
+Enroll to add a course to your work. You can leave at any time.
+
+TEST · SPRING 2026
+Demo Audit Course
+Taught by Mr. Okafor · 1 lesson
+
+Auditing what the system can actually do.
+
+ENROLL →
+Enroll click: Enroll →
+[screenshot] 24-after-enroll
+
+== 15. /lesson/start/<created_lesson> ==
+URL after lesson/start: http://localhost:3000/lesson/session_e37872db-c07
+[screenshot] 25-lesson-session
+Lesson session page (truncated):
+Paideia
+LESSON
+· AUDIT LESSON 1 · MAY 10
+← BACK
+MATERIALS
+SOURCE
+Source · upload PDF or paste excerpt
+VIDEO
+Clip · paste link or upload transcript
+◆ AI GENERATED
+AI-generated · teacher-selected · regeneratable
+◆ QUESTION
+
+Did the Industrial Revolution create the working class, or did the working class create itself?
+
+This is the audit context block. It frames the question.
+
+NOTES
+DRAFT
+REFLECTION
+SAVED
+SAVE & REFLECT →
+◆ COMPOSE AN ARTIFACT FROM THIS LESSON
+Locked until you save & reflect
+◆ OBSERVATIONS
+
+Observations land here as you save. Each one is a question only you can answer from inside your own thinking.
+Explore surface tabs: ["Notes","Draft","Reflection"]
+Switched to Draft mode: true
+[screenshot] 26-lesson-draft-typed
+Save & reflect button: Reflection
+[screenshot] 27-lesson-after-reflect
+Body tail after reflect:
+Paideia
+LESSON
+· AUDIT LESSON 1 · MAY 10
+← BACK
+MATERIALS
+SOURCE
+Source · upload PDF or paste excerpt
+VIDEO
+Clip · paste link or upload transcript
+◆ AI GENERATED
+AI-generated · teacher-selected · regeneratable
+◆ QUESTION
+
+Did the Industrial Revolution create the working class, or did the working class create itself?
+
+This is the audit context block. It frames the question.
+
+NOTES
+DRAFT
+REFLECTION
+SAVED
+SAVE & REFLECT →
+◆ COMPOSE AN ARTIFACT FROM THIS LESSON
+Locked until you save & reflect
+◆ OBSERVATIONS
+
+Observations land here as you save. Each one is a question only you can answer from inside your own thinking.
+
+== 16. /portfolio ==
+[pageerror] Error: TypeError: s.slice is not a function
+[screenshot] 28-portfolio
+Portfolio (truncated):
+This page couldn’t load
+
+A server error occurred. Reload to try again.
+
+Reload
+
+ERROR 1323770527
+
+== 17. /new-artifact (404?) ==
+/new-artifact status: 404
+[screenshot] 29-new-artifact
+/new-artifact body:
+404
+This page could not be found.
+
+== 17b. /artifacts/new (real composer route) ==
+[screenshot] 30-artifacts-new
+/artifacts/new (truncated):
+← YOUR WORK
+Paideia
+MAYA CHEN
+· NEW ARTIFACT
+Maya Chen
+▾
+Compose an artifact from your work
+
+The system organizes what you've already reasoned through — it doesn't add new claims. Open questions you're still holding stay open.
+
+INTENT
+Study guide
+Organize what you've worked through across lessons — for review, before a test, or to come back to.
+Test prep
+What you can think through · what you should think through more before the test. Open questions stay open.
+Presentation
+A slide-by-slide outline of your reasoning across selected lessons. You fill in the delivery.
+TITLE
+A short name for this artifact. e.g. "Friday's WWI test" or "Class consciousness across the unit".
+WHAT YOU'RE TRYING TO DO
+Optional. The composer uses this to shape how it organizes your work — not to add claims you haven't made.
+DRAW FROM
+Pick the lessons you've worked through that this artifact should draw on. The composer organizes what you wrote, not what the teacher provided.
+Audit Lesson 1
+DEMO AUDIT COURSE
+
+The composer takes ~6–10 seconds. You'll land on the artifact when it's ready.
+
+CANCEL
+COMPOSE →
+
+== Done ==

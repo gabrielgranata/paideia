@@ -63,7 +63,8 @@ const browser = await puppeteer.launch({
 });
 
 const page = await browser.newPage();
-page.setDefaultTimeout(15000);
+page.setDefaultTimeout(45000);
+page.setDefaultNavigationTimeout(60000);
 
 // Capture console errors / failed requests for audit notes.
 page.on("pageerror", (err) => log("[pageerror]", String(err)));

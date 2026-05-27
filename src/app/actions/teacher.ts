@@ -907,9 +907,9 @@ export async function composeStudentProgression(
         } | null;
       }>);
 
-  if (readings.length < 2) {
+  if (readings.length < 1) {
     throw new Error(
-      "composeStudentProgression: not enough readings in scope — at least 2 sessions required to compose progression.",
+      "composeStudentProgression: no readings in scope yet — at least one completed reading is required to compose progression.",
     );
   }
 
@@ -947,6 +947,23 @@ export async function composeStudentProgression(
       set derived_content = excluded.derived_content,
           derived_at = excluded.derived_at
   `;
+
+  // Fire-and-forget: the progression narrative lands as a memory="Auto"
+  // turn on the student's per-student assistant. Symmetric with the
+  // student-side composeProgression — without this, a teacher-triggered
+  // recompose silently bypasses the long-horizon profile, and future
+  // recalls (including the next progression compose) never see what was
+  // most recently observed.
+  try {
+    const scopeLabel = lessonId ? "lesson progression" : "course progression";
+    await writeStudentReadingMemory(
+      studentId,
+      `${course.title} — ${scopeLabel}`,
+      `Across ${readings.length} session${readings.length === 1 ? "" : "s"} — prior: ${composed.prior_state} | shift: ${composed.inflection_moment} | now: ${composed.current_state} | next: ${composed.recommended_next}`,
+    );
+  } catch (err) {
+    console.error("[composeStudentProgression] backboard write failed:", err);
+  }
 
   revalidatePath(`/progression/${studentId}`);
 }

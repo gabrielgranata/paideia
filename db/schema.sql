@@ -12,7 +12,10 @@ create table students (
   -- row so the teacher dashboard can render without computing across
   -- substrates. Production should derive these from the underlying nodes
   -- + reading per (student, lesson) instead.
-  stage text check (stage in ('emerging','developing','connecting')),
+  -- BC Provincial Proficiency Scale (K-9). Teacher-assigned categorization
+  -- only; AI never writes this column. 'ie' = Insufficient Evidence of
+  -- learning. NULL = not yet assessed (distinct from 'ie').
+  stage text check (stage in ('emerging','developing','proficient','extending','ie')),
   summary text,
   flagged boolean not null default false,
   created_at timestamptz not null default now()

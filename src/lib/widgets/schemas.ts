@@ -27,7 +27,7 @@
 
 import { z } from "zod";
 import { GenerationMetaSchema } from "@/lib/lesson-blocks";
-import { ArtifactReferenceSchema } from "@/lib/artifacts/schemas";
+import { ArtifactReferenceSchema, type ArtifactReference } from "@/lib/artifacts/schemas";
 
 // ── shared ──
 
@@ -57,11 +57,16 @@ export const QuoteWidgetSchema = z.object({
 });
 export type QuoteWidget = z.infer<typeof QuoteWidgetSchema>;
 
+// `ref` uses `z.lazy()` to defer reading `ArtifactReferenceSchema` until
+// validation time. Turbopack was inlining widgets/schemas + artifacts/schemas
+// into the same chunk and emitting them in the wrong order, causing a TDZ
+// on `ArtifactReferenceSchema` during module init. z.lazy() breaks the
+// init-time dependency without changing runtime semantics.
 export const SourceRefWidgetSchema = z.object({
   id: WidgetIdSchema,
   type: z.literal("source_ref"),
   authored_by: z.literal("student"),
-  ref: ArtifactReferenceSchema,
+  ref: z.lazy(() => ArtifactReferenceSchema) as z.ZodType<ArtifactReference>,
   // Optional one-line note from the student about why they're citing.
   note: z.string().optional(),
 });

@@ -8,7 +8,7 @@
  */
 
 import { sql } from "@/lib/db";
-import { getBackboardClient } from "./client";
+import { getBackboardClient, type BackboardAssistant } from "./client";
 
 export type ScopeType = "student" | "lesson" | "teacher";
 
@@ -75,8 +75,20 @@ export async function getOrCreateScope(
   const client = getBackboardClient();
   const name = opts.name ?? assistantNameFor(scope_type, scope_ref_id);
 
-  const existing = await client.listAssistants(0, 1000);
-  const match = existing.find((a) => a.name === name);
+  // Backboard caps `limit` at 200 per page. Page through until we either
+  // find the match or hit the end. Necessary for correctness, not just
+  // throughput: if we silently cap at 200 and the named assistant lives
+  // past the cutoff, we'd create a duplicate, which would split this
+  // scope's memory across two assistants (and break per-user isolation
+  // once names collide in any future migration).
+  const PAGE = 200;
+  let match: BackboardAssistant | undefined;
+  for (let skip = 0; ; skip += PAGE) {
+    const page = await client.listAssistants(skip, PAGE);
+    match = page.find((a) => a.name === name);
+    if (match) break;
+    if (page.length < PAGE) break;
+  }
   if (match) {
     await sql`
       insert into backboard_scopes (scope_type, scope_ref_id, assistant_id)

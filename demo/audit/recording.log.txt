@@ -1,0 +1,24 @@
+[   0.00s] DATABASE_URL OK: postgres://paideia:paideia@localhost:5433/paideia
+[   0.00s] Launching browser…
+[   0.96s] sign in as Mr. Okafor…
+[   2.85s] URL after sign-in: http://localhost:3000/teacher
+[   2.87s] Recording started → /Users/gabriel/workplace/paideia/demo/recording-raw.mp4
+[   2.87s] SEG 1: teacher class dashboard
+[   7.70s] [seg] hold 9.17s → t=14.0s before SEG2: hover Maya
+[  16.87s] SEG 2: click into Maya, composed reading
+[  31.39s] [seg] hold 8.88s → t=37.4s before SEG3: prepare Maya switch
+[  40.27s] SEG 3: sign out, sign in as Maya, open her session
+[  40.27s] sign in as Maya Chen…
+[  42.24s] URL after sign-in: http://localhost:3000/artifacts
+[  44.13s] [seg] hold 3.23s → t=44.5s before SEG4: hold on Maya's surface
+[  47.37s] SEG 4: observation moment + Maya types one sentence
+[  58.86s] [seg] hold 10.11s → t=66.1s before SEG5: prepare progression
+[  68.97s] SEG 5: progression view (across-time narrative)
+[  91.81s] [seg] hold 4.46s → t=93.4s before SEG6: back to teacher
+[  96.27s] SEG 6: close on teacher class view
+[  96.27s] sign in as Mr. Okafor…
+[  98.11s] URL after sign-in: http://localhost:3000/teacher
+[ 104.22s] [seg] hold 12.05s → t=113.4s end
+[ 116.27s] Run complete. Recorded ≈ 113.4 s
+[ 120.85s] Recorder stopped, file: /Users/gabriel/workplace/paideia/demo/recording-raw.mp4
+[ 121.02s] Notes file written.
