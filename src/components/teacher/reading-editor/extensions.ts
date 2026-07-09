@@ -24,6 +24,7 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 import { AIParagraphView } from "./AIParagraphView";
 import { ChartSegmentView } from "./ChartSegmentView";
 import { DiagramSegmentView } from "./DiagramSegmentView";
+import { AIPromptWidget } from "./AIPromptWidget";
 import type {
   AIParagraphSegment,
   AIChartSegment,
@@ -91,6 +92,59 @@ export const AIChartExtension = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(ChartSegmentView);
+  },
+});
+
+// Transient in-flow prompt widget. This node is the Notion-style "AI
+// widget" — it renders a brief input at the cursor and, on generate,
+// REPLACES ITSELF with a real AI segment node returned by
+// /api/teacher/generate-segment (which server-attaches the generation
+// stamp). The node is intentionally NOT serializable: the Doc serializer
+// drops unknown node types, so an open prompt widget never persists.
+// The widget cannot forge provenance — it has no generation field at all.
+export type AIPromptOptions = {
+  lessonId: string;
+  blockId: string;
+  lessonTitle: string;
+  lessonPrompt: string;
+};
+
+export const AIPromptExtension = Node.create<AIPromptOptions>({
+  name: "aiPrompt",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: false,
+
+  addOptions() {
+    return {
+      lessonId: "",
+      blockId: "",
+      lessonTitle: "",
+      lessonPrompt: "",
+    };
+  },
+
+  addAttributes() {
+    return {
+      subKind: { default: "paragraph" as "paragraph" | "chart" | "diagram" },
+    };
+  },
+
+  parseHTML() {
+    // Never parsed back from HTML — transient only.
+    return [];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, { "data-segment-kind": "ai-prompt" }),
+    ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(AIPromptWidget);
   },
 });
 
