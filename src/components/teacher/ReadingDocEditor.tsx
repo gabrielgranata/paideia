@@ -1,31 +1,39 @@
 "use client";
 
-// ReadingDocEditor — TipTap-based editor for one reading block, with a
-// Notion-style editing surface:
+// ReadingDocEditor — the manuscript surface for one reading block.
 //
-//   - StarterKit handles paragraph / bold / italic / etc. The default
-//     `paragraph` node serves as a human-authored segment.
-//   - Three custom block nodes (aiParagraph, aiChart, aiDiagram) represent
-//     AI-authored segments. The Segment data lives on the node's `segment`
-//     attr; NodeViews render the provenance UI inline.
-//   - A transient `aiPrompt` node is the in-flow AI widget: the slash
-//     menu and block handle insert it; generating replaces it with a real
-//     segment; it never serializes.
-//   - Typing "/" in a plain paragraph opens the slash command menu
-//     (SlashMenu.tsx). Hovering a block shows the ⋮⋮ gutter handle
-//     (BlockHandle.tsx) with move / insert-below / delete actions.
-//   - On every change, the editor serializes its JSON to a Doc and
-//     debounce-saves via the saveReadingDoc server action.
+// Layout concept: "the manuscript and its spine." The reading is a
+// floating sheet on the parchment canvas, set at reading measure in the
+// same typography the student will meet. The lesson's central question
+// sits above it as an epigraph — authoring stays anchored to the
+// question the reading serves. The left margin carries the segment
+// spine (SegmentSpine.tsx): a structural map of the doc where the
+// teacher's prose and AI segments are visibly distinct, with a
+// composition ledger underneath. Chrome is quiet: save state is a dot,
+// not a toolbar.
+//
+// Editing model (unchanged):
+//   - StarterKit paragraphs are human-authored segments.
+//   - aiParagraph / aiChart / aiDiagram carry AI segments with their
+//     server-set generation stamps; NodeViews render provenance inline.
+//   - The transient aiPrompt node is the in-flow AI widget: the slash
+//     menu, spine, and block handle insert it; generating replaces it
+//     with a real segment; it never serializes.
+//   - "/" opens the slash command menu; hovering a block shows the ⋮⋮
+//     gutter handle (move / insert-below / delete).
+//   - Changes debounce-save through the saveReadingDoc server action.
+//
+// "Read as the student" renders the live doc through the student
+// DocRenderer — the same component /lesson uses — so preview cannot
+// diverge from what students actually see.
 //
 // Provenance discipline enforced here:
-//   - There is NO command to convert a human paragraph into an AI segment.
-//     AI segments only enter via the aiPrompt widget, which goes through
-//     /api/teacher/generate-segment (which server-attaches generation
-//     metadata). The teacher cannot forge a generation stamp from inside
-//     the editor.
-//   - There is NO "rewrite with AI" / "polish" / "continue writing"
-//     command anywhere in the slash menu or block handle. The teacher's
-//     words are the teacher's words.
+//   - NO command converts a human paragraph into an AI segment. AI
+//     segments only enter via the aiPrompt widget, which goes through
+//     /api/teacher/generate-segment (server-attached generation
+//     metadata). The teacher cannot forge a generation stamp.
+//   - NO "rewrite with AI" / "polish" / "continue writing" anywhere.
+//     The teacher's words are the teacher's words.
 
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -33,6 +41,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { saveReadingDoc } from "@/app/actions/teacher";
 import { tokens } from "@/lib/design/tokens";
+import DocRenderer from "@/components/lesson/DocRenderer";
 import {
   AIParagraphExtension,
   AIChartExtension,
@@ -51,6 +60,7 @@ import {
   type SlashState,
 } from "./reading-editor/SlashMenu";
 import { BlockHandle } from "./reading-editor/BlockHandle";
+import { SegmentSpine } from "./reading-editor/SegmentSpine";
 import type { Doc } from "@/lib/lesson-blocks";
 
 const SAVE_DEBOUNCE_MS = 700;
@@ -64,6 +74,7 @@ type Props = {
 };
 
 type PromptSubKind = "paragraph" | "chart" | "diagram";
+type Mode = "compose" | "student";
 
 const SLASH_TO_SUBKIND: Partial<Record<SlashItem["kind"], PromptSubKind>> = {
   ai_paragraph: "paragraph",
@@ -72,9 +83,9 @@ const SLASH_TO_SUBKIND: Partial<Record<SlashItem["kind"], PromptSubKind>> = {
 };
 
 // Insert the transient AI prompt widget at the current selection. If the
-// caret sits in an empty plain paragraph, the widget replaces it (the
-// Notion feel: the empty line becomes the widget); otherwise it lands
-// after the current top-level block, never splitting the teacher's prose.
+// caret sits in an empty plain paragraph, the widget replaces it;
+// otherwise it lands after the current top-level block, never splitting
+// the teacher's prose.
 function insertPromptWidget(editor: Editor, subKind: PromptSubKind): void {
   const { state } = editor;
   const $from = state.selection.$from;
@@ -97,6 +108,13 @@ function insertPromptWidget(editor: Editor, subKind: PromptSubKind): void {
   editor.chain().insertContentAt(state.selection.to, node).run();
 }
 
+const SAVE_LABEL: Record<string, { text: string; color: string }> = {
+  idle: { text: "autosaves", color: "" },
+  saving: { text: "saving…", color: "" },
+  saved: { text: "saved", color: "" },
+  error: { text: "save failed", color: "" },
+};
+
 export function ReadingDocEditor({
   lessonId,
   blockId,
@@ -104,13 +122,14 @@ export function ReadingDocEditor({
   lessonPrompt,
   initialDoc,
 }: Props) {
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle",
-  );
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [mode, setMode] = useState<Mode>("compose");
+  const [previewDoc, setPreviewDoc] = useState<Doc>(initialDoc);
   const [, startTransition] = useTransition();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Slash menu state. Refs mirror state so the editor's handleKeyDown
   // (bound once at creation) always sees current values.
@@ -194,7 +213,6 @@ export function ReadingDocEditor({
         }
         if (event.key === "Enter" || event.key === "Tab") {
           const item = items[Math.min(slashIndexRef.current, items.length - 1)];
-          // The editor instance is stable; grab it from the ref'd view.
           if (editorRef.current) runSlashCommand(editorRef.current, item);
           return true;
         }
@@ -246,121 +264,204 @@ export function ReadingDocEditor({
   }, []);
 
   // The slash menu is fixed-positioned at the caret; keep it anchored
-  // while the editor body scrolls.
+  // while the page scrolls.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !editor) return;
+    if (!editor) return;
     function onScroll(): void {
       if (slashRef.current && editor) syncSlash(editor);
     }
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
   }, [editor, syncSlash]);
+
+  function enterStudentView(): void {
+    if (editor) setPreviewDoc(editorJsonToDoc(editor.getJSON()));
+    setMode("student");
+    setSlash(null);
+  }
+
+  const modeTab = (label: string, target: Mode, onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        fontSize: 9,
+        fontWeight: 700,
+        color: mode === target ? tokens.color.text : tokens.color.faint,
+        padding: "4px 10px",
+        border: "none",
+        borderBottom: `2px solid ${
+          mode === target ? tokens.color.text : "transparent"
+        }`,
+        background: "transparent",
+        fontFamily: tokens.font.ui,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const save = SAVE_LABEL[saveStatus];
+  const saveDotColor =
+    saveStatus === "error"
+      ? tokens.color.flagBd
+      : saveStatus === "saved"
+        ? tokens.ai.border
+        : tokens.color.border;
 
   return (
     <div
       style={{
-        flex: 1,
         display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
+        justifyContent: "center",
+        gap: 32,
+        padding: "26px 28px 80px",
       }}
     >
-      {/* Toolbar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "10px 24px",
-          gap: 10,
-          borderBottom: `1px solid ${tokens.color.border}`,
-          background: tokens.color.cardLight,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            if (!editor) return;
+      {/* The spine — structural map + composition ledger */}
+      {editor && (
+        <SegmentSpine
+          editor={editor}
+          interactive={mode === "compose"}
+          onInsertAI={() => {
             editor.commands.focus();
             insertPromptWidget(editor, "paragraph");
           }}
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: tokens.color.text,
-            padding: "5px 12px",
-            border: `1px solid ${tokens.color.text}`,
-            background: tokens.color.panel,
-            fontFamily: tokens.font.ui,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            borderRadius: 2,
-          }}
-        >
-          {tokens.aiMarker} Insert AI segment
-        </button>
+        />
+      )}
 
-        <span
-          style={{
-            fontFamily: tokens.font.ui,
-            fontSize: 9,
-            color: tokens.color.faint,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-          }}
-        >
-          Type / for commands · hover a block for actions
-        </span>
-
-        <span
-          style={{
-            marginLeft: "auto",
-            fontFamily: tokens.font.ui,
-            fontSize: 9,
-            color: tokens.color.faint,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-          }}
-        >
-          {saveStatus === "saving" && "Saving…"}
-          {saveStatus === "saved" && "Saved"}
-          {saveStatus === "error" && "Save failed"}
-          {saveStatus === "idle" && "Edits autosave"}
-        </span>
-      </div>
-
-      {/* Body — editor surface with block-handle gutter */}
-      <div
-        ref={scrollRef}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "20px 36px",
-          background: tokens.color.panel,
-        }}
-      >
-        <div
-          ref={wrapperRef}
-          style={{
-            position: "relative",
-            paddingLeft: 26, // gutter for the ⋮⋮ block handle
-          }}
-        >
-          {editor && <BlockHandle editor={editor} wrapperRef={wrapperRef} />}
-          <EditorContent
-            editor={editor}
+      {/* The manuscript column */}
+      <div style={{ width: "min(720px, 100%)", minWidth: 0 }}>
+        {/* Epigraph — the question this reading serves */}
+        <div style={{ margin: "0 0 18px", padding: "0 8px" }}>
+          <div
+            style={{
+              fontFamily: tokens.font.ui,
+              fontSize: 8,
+              fontWeight: 700,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: tokens.color.faint,
+              marginBottom: 6,
+            }}
+          >
+            The question this reading serves
+          </div>
+          <div
             style={{
               fontFamily: tokens.font.body,
               fontSize: 15,
-              lineHeight: 1.75,
-              color: tokens.color.text,
+              fontStyle: "italic",
+              lineHeight: 1.6,
+              color: tokens.color.sec,
+              maxWidth: "62ch",
             }}
-          />
+          >
+            {lessonPrompt}
+          </div>
         </div>
+
+        {/* Mode tabs + save state */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "0 8px",
+            marginBottom: 10,
+          }}
+        >
+          {modeTab("Compose", "compose", () => setMode("compose"))}
+          {modeTab("As the student", "student", enterStudentView)}
+          <span
+            style={{
+              marginLeft: "auto",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: tokens.font.ui,
+              fontSize: 9,
+              color:
+                saveStatus === "error"
+                  ? tokens.color.flagText
+                  : tokens.color.faint,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: saveDotColor,
+                display: "inline-block",
+              }}
+            />
+            {save.text}
+          </span>
+        </div>
+
+        {/* The sheet */}
+        <div
+          style={{
+            background: tokens.color.cardLight,
+            borderRadius: 4,
+            boxShadow: tokens.shadowMd,
+            border: `1px solid ${tokens.color.border}`,
+            padding:
+              mode === "compose" ? "44px 52px 56px 30px" : "44px 52px 56px",
+          }}
+        >
+          {mode === "compose" ? (
+            <div
+              ref={wrapperRef}
+              style={{
+                position: "relative",
+                paddingLeft: 24, // gutter for the ⋮⋮ block handle
+              }}
+            >
+              {editor && (
+                <BlockHandle editor={editor} wrapperRef={wrapperRef} />
+              )}
+              <EditorContent
+                editor={editor}
+                style={{
+                  fontFamily: tokens.font.body,
+                  fontSize: 17,
+                  lineHeight: 1.85,
+                  color: tokens.color.text,
+                }}
+              />
+            </div>
+          ) : (
+            <div data-student-preview="true">
+              <DocRenderer doc={previewDoc} />
+            </div>
+          )}
+        </div>
+
+        {mode === "student" && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "0 8px",
+              fontFamily: tokens.font.ui,
+              fontSize: 9,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: tokens.color.faint,
+            }}
+          >
+            Rendered exactly as the student&apos;s lesson page renders it.
+          </div>
+        )}
       </div>
 
-      {slash && (
+      {slash && mode === "compose" && (
         <SlashMenu
           state={slash}
           selectedIndex={slashIndex}
