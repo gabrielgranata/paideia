@@ -126,6 +126,10 @@ function nodeToSegment(node: TipTapNode): Segment | null {
       };
       return out;
     }
+    case "aiPrompt":
+      // Transient in-flow AI widget (brief not yet generated). Never
+      // persisted — an open prompt is a request, not content.
+      return null;
     default:
       return null;
   }

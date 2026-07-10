@@ -9,7 +9,6 @@
 // the client editor. The editor owns its own state and debounced-save
 // flow against saveReadingDoc.
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -67,64 +66,16 @@ export default async function Page({
         backLabel="Composer"
       />
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          padding: "18px 20px",
-          gap: 16,
-          minHeight: 0,
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            borderRadius: 5,
-            overflow: "hidden",
-            boxShadow: tokens.shadow,
-            background: tokens.color.panel,
-          }}
-        >
-          <ReadingDocEditor
-            lessonId={lesson_id}
-            blockId={block_id}
-            lessonTitle={lesson.title}
-            lessonPrompt={lesson.prompt}
-            initialDoc={initialDoc}
-          />
-
-          <div
-            style={{
-              padding: "10px 18px",
-              borderTop: `1px solid ${tokens.color.border}`,
-              background: tokens.color.margin,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              fontFamily: tokens.font.ui,
-              fontSize: 10,
-              color: tokens.color.ter,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-            }}
-          >
-            <span>Edits save automatically after a brief pause.</span>
-            <Link
-              href={`/teacher/lessons/${lesson_id}/edit`}
-              style={{
-                fontWeight: 700,
-                color: tokens.color.text,
-                textDecoration: "underline",
-                textUnderlineOffset: 3,
-              }}
-            >
-              ← Back to composer
-            </Link>
-          </div>
-        </div>
-      </div>
+      {/* The manuscript surface owns the canvas — spine in the left
+          margin, floating sheet at reading measure. No panel chrome;
+          the page itself scrolls. */}
+      <ReadingDocEditor
+        lessonId={lesson_id}
+        blockId={block_id}
+        lessonTitle={lesson.title}
+        lessonPrompt={lesson.prompt}
+        initialDoc={initialDoc}
+      />
     </div>
   );
 }

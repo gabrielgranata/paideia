@@ -1,44 +1,67 @@
 "use client";
 
-// ReadingDocEditor — TipTap-based editor for one reading block.
+// ReadingDocEditor — the manuscript surface for one reading block.
 //
-// Architecture:
-//   - StarterKit handles paragraph / bold / italic / etc. The default
-//     `paragraph` node serves as a human-authored segment.
-//   - Three custom block nodes (aiParagraph, aiChart, aiDiagram) represent
-//     AI-authored segments. The Segment data lives on the node's `segment`
-//     attr; NodeViews render the provenance UI inline.
-//   - On every change, the editor serializes its JSON to a Doc and
-//     debounce-saves via the saveReadingDoc server action. No optimistic
-//     UI beyond the editor's own local state; the server is the canonical
-//     persistence.
+// Layout concept: "the manuscript and its spine." The reading is a
+// floating sheet on the parchment canvas, set at reading measure in the
+// same typography the student will meet. The lesson's central question
+// sits above it as an epigraph — authoring stays anchored to the
+// question the reading serves. The left margin carries the segment
+// spine (SegmentSpine.tsx): a structural map of the doc where the
+// teacher's prose and AI segments are visibly distinct, with a
+// composition ledger underneath. Chrome is quiet: save state is a dot,
+// not a toolbar.
+//
+// Editing model (unchanged):
+//   - StarterKit paragraphs are human-authored segments.
+//   - aiParagraph / aiChart / aiDiagram carry AI segments with their
+//     server-set generation stamps; NodeViews render provenance inline.
+//   - The transient aiPrompt node is the in-flow AI widget: the slash
+//     menu, spine, and block handle insert it; generating replaces it
+//     with a real segment; it never serializes.
+//   - "/" opens the slash command menu; hovering a block shows the ⋮⋮
+//     gutter handle (move / insert-below / delete).
+//   - Changes debounce-save through the saveReadingDoc server action.
+//
+// "Read as the student" renders the live doc through the student
+// DocRenderer — the same component /lesson uses — so preview cannot
+// diverge from what students actually see.
 //
 // Provenance discipline enforced here:
-//   - There is NO command to convert a human paragraph into an AI segment.
-//     AI segments only enter via the GeneratePanel, which goes through
-//     /api/teacher/generate-segment (which server-attaches generation
-//     metadata). The teacher cannot forge a generation stamp from inside
-//     the editor.
-//   - There is NO "rewrite with AI" command for existing human prose.
+//   - NO command converts a human paragraph into an AI segment. AI
+//     segments only enter via the aiPrompt widget, which goes through
+//     /api/teacher/generate-segment (server-attached generation
+//     metadata). The teacher cannot forge a generation stamp.
+//   - NO "rewrite with AI" / "polish" / "continue writing" anywhere.
 //     The teacher's words are the teacher's words.
 
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Placeholder from "@tiptap/extension-placeholder";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { saveReadingDoc } from "@/app/actions/teacher";
 import { tokens } from "@/lib/design/tokens";
+import DocRenderer from "@/components/lesson/DocRenderer";
 import {
   AIParagraphExtension,
   AIChartExtension,
   AIDiagramExtension,
+  AIPromptExtension,
+  GhostHintExtension,
 } from "./reading-editor/extensions";
 import {
   docToEditorContent,
   editorJsonToDoc,
 } from "./reading-editor/serialize";
-import { GeneratePanel } from "./reading-editor/GeneratePanel";
-import type { Doc, Segment } from "@/lib/lesson-blocks";
+import {
+  SlashMenu,
+  computeSlashState,
+  filterSlashItems,
+  type SlashItem,
+  type SlashState,
+} from "./reading-editor/SlashMenu";
+import { BlockHandle } from "./reading-editor/BlockHandle";
+import { SegmentSpine } from "./reading-editor/SegmentSpine";
+import type { Doc } from "@/lib/lesson-blocks";
 
 const SAVE_DEBOUNCE_MS = 700;
 
@@ -50,6 +73,48 @@ type Props = {
   initialDoc: Doc;
 };
 
+type PromptSubKind = "paragraph" | "chart" | "diagram";
+type Mode = "compose" | "student";
+
+const SLASH_TO_SUBKIND: Partial<Record<SlashItem["kind"], PromptSubKind>> = {
+  ai_paragraph: "paragraph",
+  ai_chart: "chart",
+  ai_diagram: "diagram",
+};
+
+// Insert the transient AI prompt widget at the current selection. If the
+// caret sits in an empty plain paragraph, the widget replaces it;
+// otherwise it lands after the current top-level block, never splitting
+// the teacher's prose.
+function insertPromptWidget(editor: Editor, subKind: PromptSubKind): void {
+  const { state } = editor;
+  const $from = state.selection.$from;
+  const node = { type: "aiPrompt", attrs: { subKind } };
+  if (
+    $from.depth === 1 &&
+    $from.parent.type.name === "paragraph" &&
+    $from.parent.content.size === 0
+  ) {
+    editor
+      .chain()
+      .insertContentAt({ from: $from.before(1), to: $from.after(1) }, node)
+      .run();
+    return;
+  }
+  if ($from.depth >= 1) {
+    editor.chain().insertContentAt($from.after(1), node).run();
+    return;
+  }
+  editor.chain().insertContentAt(state.selection.to, node).run();
+}
+
+const SAVE_LABEL: Record<string, { text: string; color: string }> = {
+  idle: { text: "autosaves", color: "" },
+  saving: { text: "saving…", color: "" },
+  saved: { text: "saved", color: "" },
+  error: { text: "save failed", color: "" },
+};
+
 export function ReadingDocEditor({
   lessonId,
   blockId,
@@ -57,12 +122,54 @@ export function ReadingDocEditor({
   lessonPrompt,
   initialDoc,
 }: Props) {
-  const [generateOpen, setGenerateOpen] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle",
-  );
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [mode, setMode] = useState<Mode>("compose");
+  const [previewDoc, setPreviewDoc] = useState<Doc>(initialDoc);
   const [, startTransition] = useTransition();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Slash menu state. Refs mirror state so the editor's handleKeyDown
+  // (bound once at creation) always sees current values.
+  const [slash, setSlash] = useState<SlashState | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const slashRef = useRef<SlashState | null>(null);
+  const slashIndexRef = useRef(0);
+  // Esc-dismissed trigger: stays closed until the query text changes.
+  const dismissedRef = useRef<{ from: number; query: string } | null>(null);
+  slashRef.current = slash;
+  slashIndexRef.current = slashIndex;
+
+  const runSlashCommand = useCallback((editor: Editor, item: SlashItem) => {
+    const active = slashRef.current;
+    if (!active) return;
+    dismissedRef.current = null;
+    editor.chain().focus().deleteRange(active.range).run();
+    setSlash(null);
+    setSlashIndex(0);
+    const subKind = SLASH_TO_SUBKIND[item.kind];
+    if (!subKind) return; // "text": slash text removed, paragraph stays
+    insertPromptWidget(editor, subKind);
+  }, []);
+
+  const syncSlash = useCallback((editor: Editor) => {
+    const next = computeSlashState(editor);
+    const dismissed = dismissedRef.current;
+    if (
+      next &&
+      dismissed &&
+      dismissed.from === next.range.from &&
+      dismissed.query === next.query
+    ) {
+      setSlash(null);
+      return;
+    }
+    if (next?.query !== slashRef.current?.query) setSlashIndex(0);
+    setSlash(next);
+    if (!next) dismissedRef.current = null;
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -72,16 +179,68 @@ export function ReadingDocEditor({
         heading: false,
         // Block quote is handy for source excerpts; keep it on.
       }),
-      Placeholder.configure({
-        placeholder:
-          "Write the reading. Use the ◆ button to insert an AI-generated paragraph, chart, or diagram.",
+      GhostHintExtension.configure({
+        // The familiar ghost line: every empty paragraph under the
+        // caret invites the / menu, not just an empty document.
+        firstLine:
+          "Write the reading. Type / for blocks — text or ◆ AI segments.",
+        anyLine: "Type / for commands…",
       }),
       AIParagraphExtension,
       AIChartExtension,
       AIDiagramExtension,
+      AIPromptExtension.configure({
+        lessonId,
+        blockId,
+        lessonTitle,
+        lessonPrompt,
+      }),
     ],
     content: docToEditorContent(initialDoc) as unknown as Record<string, unknown>,
     immediatelyRender: false, // Next.js SSR compatibility
+    editorProps: {
+      handleKeyDown: (view, event) => {
+        const active = slashRef.current;
+        if (!active) return false;
+        const items = filterSlashItems(active.query);
+        if (items.length === 0) return false;
+        if (event.key === "ArrowDown") {
+          setSlashIndex((slashIndexRef.current + 1) % items.length);
+          return true;
+        }
+        if (event.key === "ArrowUp") {
+          setSlashIndex(
+            (slashIndexRef.current - 1 + items.length) % items.length,
+          );
+          return true;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          const item = items[Math.min(slashIndexRef.current, items.length - 1)];
+          if (editorRef.current) runSlashCommand(editorRef.current, item);
+          return true;
+        }
+        if (event.key === "Escape") {
+          dismissedRef.current = {
+            from: active.range.from,
+            query: active.query,
+          };
+          setSlash(null);
+          return true;
+        }
+        return false;
+      },
+    },
+    onTransaction: ({ editor }) => {
+      syncSlash(editor);
+    },
+    onBlur: () => {
+      // Let a click inside the menu land first (menu uses onMouseDown),
+      // and keep the menu when focus returns to the editor immediately —
+      // the gutter [+] blurs for a moment while it inserts and refocuses.
+      setTimeout(() => {
+        if (!editorRef.current?.isFocused) setSlash(null);
+      }, 120);
+    },
     onUpdate: ({ editor }) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       setSaveStatus("idle");
@@ -102,168 +261,261 @@ export function ReadingDocEditor({
     },
   });
 
+  const editorRef = useRef<Editor | null>(null);
+  editorRef.current = editor;
+
   useEffect(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, []);
 
-  // Pull a snippet of surrounding text for the composer. Used as the
-  // surrounding_text input — gives the LLM enough context to write a
-  // segment that fits the existing prose.
-  const getSurroundingText = useCallback((): string => {
-    if (!editor) return "";
-    const full = editor.getText();
-    // Take ~600 characters around the current selection, or the whole
-    // doc if it's short.
-    if (full.length <= 600) return full;
-    const pos = editor.state.selection.from;
-    const start = Math.max(0, pos - 300);
-    const end = Math.min(full.length, pos + 300);
-    return editor.state.doc.textBetween(start, end, " ");
-  }, [editor]);
+  // The slash menu is fixed-positioned at the caret; keep it anchored
+  // while the page scrolls.
+  useEffect(() => {
+    if (!editor) return;
+    function onScroll(): void {
+      if (slashRef.current && editor) syncSlash(editor);
+    }
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [editor, syncSlash]);
 
-  const insertSegment = useCallback(
-    (segment: Segment) => {
-      if (!editor) return;
-      if (segment.kind === "human") {
-        editor
-          .chain()
-          .focus()
-          .insertContent({
-            type: "paragraph",
-            attrs: { id: segment.id },
-            content: segment.body
-              ? [{ type: "text", text: segment.body }]
-              : undefined,
-          })
-          .run();
-        return;
-      }
-      if (segment.sub_kind === "paragraph") {
-        editor
-          .chain()
-          .focus()
-          .insertContent({
-            type: "aiParagraph",
-            attrs: { id: segment.id, segment },
-            content: segment.body
-              ? [{ type: "text", text: segment.body }]
-              : undefined,
-          })
-          .run();
-        return;
-      }
-      if (segment.sub_kind === "chart") {
-        editor
-          .chain()
-          .focus()
-          .insertContent({
-            type: "aiChart",
-            attrs: { id: segment.id, segment },
-          })
-          .run();
-        return;
-      }
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          type: "aiDiagram",
-          attrs: { id: segment.id, segment },
-        })
-        .run();
-    },
-    [editor],
+  function enterStudentView(): void {
+    if (editor) setPreviewDoc(editorJsonToDoc(editor.getJSON()));
+    setMode("student");
+    setSlash(null);
+  }
+
+  const modeTab = (label: string, target: Mode, onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        fontSize: 9,
+        fontWeight: 700,
+        color: mode === target ? tokens.color.text : tokens.color.faint,
+        padding: "4px 10px",
+        border: "none",
+        borderBottom: `2px solid ${
+          mode === target ? tokens.color.text : "transparent"
+        }`,
+        background: "transparent",
+        fontFamily: tokens.font.ui,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
   );
+
+  const save = SAVE_LABEL[saveStatus];
+  const saveDotColor =
+    saveStatus === "error"
+      ? tokens.color.flagBd
+      : saveStatus === "saved"
+        ? tokens.ai.border
+        : tokens.color.border;
 
   return (
     <div
       style={{
-        flex: 1,
         display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
+        justifyContent: "center",
+        gap: 32,
+        padding: "26px 28px 80px",
       }}
     >
-      {/* Toolbar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "10px 24px",
-          gap: 10,
-          borderBottom: `1px solid ${tokens.color.border}`,
-          background: tokens.color.cardLight,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setGenerateOpen((v) => !v)}
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: tokens.color.text,
-            padding: "5px 12px",
-            border: `1px solid ${tokens.color.text}`,
-            background: tokens.color.panel,
-            fontFamily: tokens.font.ui,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            borderRadius: 2,
-          }}
-        >
-          {tokens.aiMarker} {generateOpen ? "Close generator" : "Insert AI segment"}
-        </button>
-
-        <span
-          style={{
-            marginLeft: "auto",
-            fontFamily: tokens.font.ui,
-            fontSize: 9,
-            color: tokens.color.faint,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-          }}
-        >
-          {saveStatus === "saving" && "Saving…"}
-          {saveStatus === "saved" && "Saved"}
-          {saveStatus === "error" && "Save failed"}
-          {saveStatus === "idle" && "Edits autosave"}
-        </span>
-      </div>
-
-      {/* Body — generate panel + editor surface */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "20px 36px",
-          background: tokens.color.panel,
-        }}
-      >
-        {generateOpen && (
-          <GeneratePanel
-            lessonId={lessonId}
-            blockId={blockId}
-            lessonTitle={lessonTitle}
-            lessonPrompt={lessonPrompt}
-            getSurroundingText={getSurroundingText}
-            onGenerated={(seg) => insertSegment(seg)}
-            onClose={() => setGenerateOpen(false)}
-          />
-        )}
-        <EditorContent
+      {/* Micro-interaction layer. Inline styles carry the identity;
+          these classes carry only motion and hover states, and all
+          motion collapses under prefers-reduced-motion. */}
+      <style>{`
+        @keyframes pdPop {
+          from { opacity: 0; transform: translateY(4px) scale(0.98); }
+          to   { opacity: 1; transform: none; }
+        }
+        .pd-pop { animation: pdPop 0.14s ease-out; }
+        .pd-pop-fast { animation: pdPop 0.09s ease-out; }
+        @keyframes pdPulse {
+          0%, 100% { opacity: 0.35; }
+          50%      { opacity: 1; }
+        }
+        .pd-pulse { animation: pdPulse 1.1s ease-in-out infinite; }
+        .pd-gutter-btn { transition: background 0.12s ease, color 0.12s ease; }
+        .pd-gutter-btn:hover { background: ${tokens.color.margin} !important; color: ${tokens.color.text} !important; }
+        .pd-gutter-btn:active { cursor: grabbing; }
+        .pd-item { transition: background 0.1s ease; }
+        .pd-item:hover:not(:disabled) { background: ${tokens.color.margin} !important; }
+        .pd-spine-row { transition: background 0.12s ease, border-color 0.12s ease; }
+        .pd-spine-row:hover:not(:disabled) { background: ${tokens.color.margin}; }
+        .tiptap { outline: none; }
+        .tiptap p.is-empty::before {
+          content: attr(data-placeholder);
+          float: left;
+          height: 0;
+          pointer-events: none;
+          color: ${tokens.color.textDisabled};
+          font-style: italic;
+        }
+        .tiptap .ProseMirror-selectednode { outline: 2px solid ${tokens.ai.border}; outline-offset: 3px; border-radius: 2px; }
+        @media (prefers-reduced-motion: reduce) {
+          .pd-pop, .pd-pop-fast, .pd-pulse { animation: none; }
+          .pd-gutter-btn, .pd-item, .pd-spine-row { transition: none; }
+        }
+      `}</style>
+      {/* The spine — structural map + composition ledger */}
+      {editor && (
+        <SegmentSpine
           editor={editor}
-          style={{
-            fontFamily: tokens.font.body,
-            fontSize: 15,
-            lineHeight: 1.75,
-            color: tokens.color.text,
+          interactive={mode === "compose"}
+          onInsertAI={() => {
+            editor.commands.focus();
+            insertPromptWidget(editor, "paragraph");
           }}
         />
+      )}
+
+      {/* The manuscript column */}
+      <div style={{ width: "min(720px, 100%)", minWidth: 0 }}>
+        {/* Epigraph — the question this reading serves */}
+        <div style={{ margin: "0 0 18px", padding: "0 8px" }}>
+          <div
+            style={{
+              fontFamily: tokens.font.ui,
+              fontSize: 8,
+              fontWeight: 700,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: tokens.color.faint,
+              marginBottom: 6,
+            }}
+          >
+            The question this reading serves
+          </div>
+          <div
+            style={{
+              fontFamily: tokens.font.body,
+              fontSize: 15,
+              fontStyle: "italic",
+              lineHeight: 1.6,
+              color: tokens.color.sec,
+              maxWidth: "62ch",
+            }}
+          >
+            {lessonPrompt}
+          </div>
+        </div>
+
+        {/* Mode tabs + save state */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "0 8px",
+            marginBottom: 10,
+          }}
+        >
+          {modeTab("Compose", "compose", () => setMode("compose"))}
+          {modeTab("As the student", "student", enterStudentView)}
+          <span
+            style={{
+              marginLeft: "auto",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: tokens.font.ui,
+              fontSize: 9,
+              color:
+                saveStatus === "error"
+                  ? tokens.color.flagText
+                  : tokens.color.faint,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              className={saveStatus === "saving" ? "pd-pulse" : undefined}
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: saveDotColor,
+                display: "inline-block",
+              }}
+            />
+            {save.text}
+          </span>
+        </div>
+
+        {/* The sheet */}
+        <div
+          style={{
+            background: tokens.color.cardLight,
+            borderRadius: 4,
+            boxShadow: tokens.shadowMd,
+            border: `1px solid ${tokens.color.border}`,
+            padding:
+              mode === "compose" ? "44px 52px 56px 30px" : "44px 52px 56px",
+          }}
+        >
+          {mode === "compose" ? (
+            <div
+              ref={wrapperRef}
+              style={{
+                position: "relative",
+                paddingLeft: 24, // gutter for the ⋮⋮ block handle
+              }}
+            >
+              {editor && (
+                <BlockHandle editor={editor} wrapperRef={wrapperRef} />
+              )}
+              <EditorContent
+                editor={editor}
+                style={{
+                  fontFamily: tokens.font.body,
+                  fontSize: 17,
+                  lineHeight: 1.85,
+                  color: tokens.color.text,
+                }}
+              />
+            </div>
+          ) : (
+            <div data-student-preview="true">
+              <DocRenderer doc={previewDoc} />
+            </div>
+          )}
+        </div>
+
+        {mode === "student" && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "0 8px",
+              fontFamily: tokens.font.ui,
+              fontSize: 9,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: tokens.color.faint,
+            }}
+          >
+            Rendered exactly as the student&apos;s lesson page renders it.
+          </div>
+        )}
       </div>
+
+      {slash && mode === "compose" && (
+        <SlashMenu
+          state={slash}
+          selectedIndex={slashIndex}
+          onHover={(i) => setSlashIndex(i)}
+          onSelect={(item) => {
+            if (editorRef.current) runSlashCommand(editorRef.current, item);
+          }}
+        />
+      )}
     </div>
   );
 }
