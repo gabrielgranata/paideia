@@ -4,9 +4,11 @@
 //
 // Typing "/" in a plain (human) paragraph opens this menu at the caret;
 // typing filters it; ↑/↓/↵ navigate and insert; Esc dismisses. The menu
-// is deliberately small: plain text plus the three AI segment kinds. No
-// command edits existing prose — every item INSERTS, and AI items insert
-// the transient prompt widget (which routes through the provenance-
+// is deliberately small: plain text plus the three AI segment kinds,
+// grouped the way familiar editors group them ("Basic", then the AI
+// blocks under an explicit provenance banner). No command edits
+// existing prose — every item INSERTS, and AI items insert the
+// transient prompt widget (which routes through the provenance-
 // stamping API). There is no "rewrite", "polish", or "continue writing"
 // command; those are completion affordances and stay out of the catalog.
 //
@@ -29,7 +31,8 @@ export type SlashItem = {
   title: string;
   hint: string;
   keywords: string[];
-  ai: boolean;
+  glyph: string;
+  group: "basic" | "ai";
 };
 
 export const SLASH_ITEMS: SlashItem[] = [
@@ -38,28 +41,32 @@ export const SLASH_ITEMS: SlashItem[] = [
     title: "Text",
     hint: "Plain paragraph, your words",
     keywords: ["text", "paragraph", "plain"],
-    ai: false,
+    glyph: "T",
+    group: "basic",
   },
   {
     kind: "ai_paragraph",
     title: "AI paragraph",
-    hint: "Generated prose · provenance recorded",
+    hint: "Generated prose",
     keywords: ["ai", "paragraph", "generate", "prose"],
-    ai: true,
+    glyph: "◆",
+    group: "ai",
   },
   {
     kind: "ai_chart",
     title: "AI chart",
-    hint: "Generated chart · data source labeled",
+    hint: "Generated chart, data source labeled",
     keywords: ["ai", "chart", "graph", "data", "figure"],
-    ai: true,
+    glyph: "▥",
+    group: "ai",
   },
   {
     kind: "ai_diagram",
     title: "AI diagram",
-    hint: "Generated concept map · provenance recorded",
+    hint: "Generated concept map",
     keywords: ["ai", "diagram", "map", "concept"],
-    ai: true,
+    glyph: "◈",
+    group: "ai",
   },
 ];
 
@@ -119,78 +126,113 @@ type Props = {
   onHover: (index: number) => void;
 };
 
+const GROUP_LABEL: Record<SlashItem["group"], string> = {
+  basic: "Basic",
+  ai: "◆ AI — provenance recorded",
+};
+
 export function SlashMenu({ state, selectedIndex, onSelect, onHover }: Props) {
   const items = filterSlashItems(state.query);
   const ref = useRef<HTMLDivElement | null>(null);
 
   // Keep the selected row visible when navigating with the keyboard.
   useEffect(() => {
-    const el = ref.current?.children[selectedIndex] as
-      | HTMLElement
-      | undefined;
+    const el = ref.current?.querySelector(
+      `[data-slash-index="${selectedIndex}"]`,
+    ) as HTMLElement | null;
     el?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
   if (items.length === 0) return null;
 
-  return (
-    <div
-      ref={ref}
-      style={{
-        position: "fixed",
-        left: state.coords.left,
-        top: state.coords.bottom + 6,
-        zIndex: 60,
-        minWidth: 260,
-        maxHeight: 280,
-        overflowY: "auto",
-        background: tokens.color.panel,
-        border: `1px solid ${tokens.color.border}`,
-        borderRadius: 4,
-        boxShadow: tokens.shadowMd,
-        padding: 4,
-      }}
-    >
-      {items.map((item, i) => (
-        <button
-          key={item.kind}
-          type="button"
-          onMouseEnter={() => onHover(i)}
-          // mousedown, not click — click fires after the editor takes
-          // back focus and the menu has already closed.
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onSelect(item);
-          }}
+  const rows: React.ReactNode[] = [];
+  let lastGroup: SlashItem["group"] | null = null;
+  items.forEach((item, i) => {
+    if (item.group !== lastGroup) {
+      lastGroup = item.group;
+      rows.push(
+        <div
+          key={`g-${item.group}`}
           style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: 8,
-            width: "100%",
-            textAlign: "left",
-            padding: "7px 10px",
-            border: "none",
-            borderRadius: 3,
-            cursor: "pointer",
-            background:
-              i === selectedIndex ? tokens.color.margin : "transparent",
+            padding: "7px 10px 3px",
+            fontFamily: tokens.font.ui,
+            fontSize: 8,
+            fontWeight: 700,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: item.group === "ai" ? tokens.ai.label : tokens.color.faint,
           }}
         >
+          {GROUP_LABEL[item.group]}
+        </div>,
+      );
+    }
+    const selected = i === selectedIndex;
+    rows.push(
+      <button
+        key={item.kind}
+        type="button"
+        data-slash-index={i}
+        onMouseEnter={() => onHover(i)}
+        // mousedown, not click — click fires after the editor takes
+        // back focus and the menu has already closed.
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onSelect(item);
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          textAlign: "left",
+          padding: "6px 10px",
+          border: "none",
+          borderRadius: 3,
+          cursor: "pointer",
+          background: selected ? tokens.color.margin : "transparent",
+        }}
+      >
+        {/* Icon tile — the familiar block-menu glyph square */}
+        <span
+          aria-hidden="true"
+          style={{
+            width: 24,
+            height: 24,
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 3,
+            border: `1px solid ${
+              item.group === "ai" ? tokens.ai.border : tokens.color.border
+            }`,
+            background: tokens.color.cardLight,
+            fontFamily:
+              item.group === "ai" ? tokens.font.ui : tokens.font.display,
+            fontSize: item.group === "ai" ? 10 : 13,
+            color: item.group === "ai" ? tokens.ai.label : tokens.color.sec,
+          }}
+        >
+          {item.glyph}
+        </span>
+        <span style={{ minWidth: 0 }}>
           <span
             style={{
+              display: "block",
               fontFamily: tokens.font.ui,
               fontSize: 11,
               fontWeight: 700,
-              color: item.ai ? tokens.ai.label : tokens.color.text,
+              color:
+                item.group === "ai" ? tokens.ai.label : tokens.color.text,
               letterSpacing: "0.04em",
-              whiteSpace: "nowrap",
             }}
           >
-            {item.ai ? `${tokens.aiMarker} ` : ""}
             {item.title}
           </span>
           <span
             style={{
+              display: "block",
               fontFamily: tokens.font.ui,
               fontSize: 9,
               color: tokens.color.faint,
@@ -199,8 +241,65 @@ export function SlashMenu({ state, selectedIndex, onSelect, onHover }: Props) {
           >
             {item.hint}
           </span>
-        </button>
-      ))}
+        </span>
+        {selected && (
+          <kbd
+            style={{
+              marginLeft: "auto",
+              fontFamily: tokens.font.ui,
+              fontSize: 8,
+              color: tokens.color.faint,
+              border: `1px solid ${tokens.color.border}`,
+              borderRadius: 3,
+              padding: "1px 5px",
+              background: tokens.color.cardLight,
+            }}
+          >
+            ↵
+          </kbd>
+        )}
+      </button>,
+    );
+  });
+
+  return (
+    <div
+      ref={ref}
+      className="pd-pop"
+      style={{
+        position: "fixed",
+        left: state.coords.left,
+        top: state.coords.bottom + 6,
+        zIndex: 60,
+        width: 280,
+        maxHeight: 320,
+        overflowY: "auto",
+        background: tokens.color.panel,
+        border: `1px solid ${tokens.color.border}`,
+        borderRadius: 6,
+        boxShadow: tokens.shadowMd,
+        padding: 4,
+      }}
+    >
+      {rows}
+      <div
+        style={{
+          marginTop: 2,
+          padding: "6px 10px 4px",
+          borderTop: `1px solid ${tokens.color.border}`,
+          fontFamily: tokens.font.ui,
+          fontSize: 8,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: tokens.color.faint,
+          display: "flex",
+          gap: 12,
+        }}
+      >
+        <span>↑↓ navigate</span>
+        <span>↵ insert</span>
+        <span>esc dismiss</span>
+      </div>
     </div>
   );
 }

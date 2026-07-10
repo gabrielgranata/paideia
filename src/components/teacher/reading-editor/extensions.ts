@@ -19,7 +19,9 @@
 // "edit generation metadata" — provenance only changes via the explicit
 // "insert generated segment" flow that goes through the API route.
 
-import { Node, mergeAttributes } from "@tiptap/core";
+import { Extension, Node, mergeAttributes } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { AIParagraphView } from "./AIParagraphView";
 import { ChartSegmentView } from "./ChartSegmentView";
@@ -92,6 +94,58 @@ export const AIChartExtension = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(ChartSegmentView);
+  },
+});
+
+// GhostHint — the familiar empty-line invitation ("Type / for
+// commands…"). A minimal placeholder decoration owned by this codebase:
+// the empty paragraph under the caret gets `is-empty` +
+// `data-placeholder`, which the editor's stylesheet renders as ghost
+// text. Only plain paragraphs get the hint — an empty AI segment never
+// invites a command.
+export type GhostHintOptions = {
+  firstLine: string;
+  anyLine: string;
+};
+
+export const GhostHintExtension = Extension.create<GhostHintOptions>({
+  name: "ghostHint",
+
+  addOptions() {
+    return {
+      firstLine: "Write something…",
+      anyLine: "Type / for commands…",
+    };
+  },
+
+  addProseMirrorPlugins() {
+    const options = this.options;
+    return [
+      new Plugin({
+        props: {
+          decorations(state) {
+            const { doc, selection } = state;
+            const { anchor } = selection;
+            const decos: Decoration[] = [];
+            doc.forEach((node, pos) => {
+              if (node.type.name !== "paragraph") return;
+              if (node.content.size !== 0) return;
+              const hasAnchor =
+                anchor >= pos && anchor <= pos + node.nodeSize;
+              if (!hasAnchor) return;
+              decos.push(
+                Decoration.node(pos, pos + node.nodeSize, {
+                  class: "is-empty",
+                  "data-placeholder":
+                    doc.childCount === 1 ? options.firstLine : options.anyLine,
+                }),
+              );
+            });
+            return DecorationSet.create(doc, decos);
+          },
+        },
+      }),
+    ];
   },
 });
 

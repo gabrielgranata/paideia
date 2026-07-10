@@ -37,7 +37,6 @@
 
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Placeholder from "@tiptap/extension-placeholder";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { saveReadingDoc } from "@/app/actions/teacher";
 import { tokens } from "@/lib/design/tokens";
@@ -47,6 +46,7 @@ import {
   AIChartExtension,
   AIDiagramExtension,
   AIPromptExtension,
+  GhostHintExtension,
 } from "./reading-editor/extensions";
 import {
   docToEditorContent,
@@ -179,9 +179,12 @@ export function ReadingDocEditor({
         heading: false,
         // Block quote is handy for source excerpts; keep it on.
       }),
-      Placeholder.configure({
-        placeholder:
+      GhostHintExtension.configure({
+        // The familiar ghost line: every empty paragraph under the
+        // caret invites the / menu, not just an empty document.
+        firstLine:
           "Write the reading. Type / for blocks — text or ◆ AI segments.",
+        anyLine: "Type / for commands…",
       }),
       AIParagraphExtension,
       AIChartExtension,
@@ -231,8 +234,12 @@ export function ReadingDocEditor({
       syncSlash(editor);
     },
     onBlur: () => {
-      // Let a click inside the menu land first (menu uses onMouseDown).
-      setTimeout(() => setSlash(null), 120);
+      // Let a click inside the menu land first (menu uses onMouseDown),
+      // and keep the menu when focus returns to the editor immediately —
+      // the gutter [+] blurs for a moment while it inserts and refocuses.
+      setTimeout(() => {
+        if (!editorRef.current?.isFocused) setSlash(null);
+      }, 120);
     },
     onUpdate: ({ editor }) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -321,6 +328,43 @@ export function ReadingDocEditor({
         padding: "26px 28px 80px",
       }}
     >
+      {/* Micro-interaction layer. Inline styles carry the identity;
+          these classes carry only motion and hover states, and all
+          motion collapses under prefers-reduced-motion. */}
+      <style>{`
+        @keyframes pdPop {
+          from { opacity: 0; transform: translateY(4px) scale(0.98); }
+          to   { opacity: 1; transform: none; }
+        }
+        .pd-pop { animation: pdPop 0.14s ease-out; }
+        .pd-pop-fast { animation: pdPop 0.09s ease-out; }
+        @keyframes pdPulse {
+          0%, 100% { opacity: 0.35; }
+          50%      { opacity: 1; }
+        }
+        .pd-pulse { animation: pdPulse 1.1s ease-in-out infinite; }
+        .pd-gutter-btn { transition: background 0.12s ease, color 0.12s ease; }
+        .pd-gutter-btn:hover { background: ${tokens.color.margin} !important; color: ${tokens.color.text} !important; }
+        .pd-gutter-btn:active { cursor: grabbing; }
+        .pd-item { transition: background 0.1s ease; }
+        .pd-item:hover:not(:disabled) { background: ${tokens.color.margin} !important; }
+        .pd-spine-row { transition: background 0.12s ease, border-color 0.12s ease; }
+        .pd-spine-row:hover:not(:disabled) { background: ${tokens.color.margin}; }
+        .tiptap { outline: none; }
+        .tiptap p.is-empty::before {
+          content: attr(data-placeholder);
+          float: left;
+          height: 0;
+          pointer-events: none;
+          color: ${tokens.color.textDisabled};
+          font-style: italic;
+        }
+        .tiptap .ProseMirror-selectednode { outline: 2px solid ${tokens.ai.border}; outline-offset: 3px; border-radius: 2px; }
+        @media (prefers-reduced-motion: reduce) {
+          .pd-pop, .pd-pop-fast, .pd-pulse { animation: none; }
+          .pd-gutter-btn, .pd-item, .pd-spine-row { transition: none; }
+        }
+      `}</style>
       {/* The spine — structural map + composition ledger */}
       {editor && (
         <SegmentSpine
@@ -393,6 +437,7 @@ export function ReadingDocEditor({
           >
             <span
               aria-hidden="true"
+              className={saveStatus === "saving" ? "pd-pulse" : undefined}
               style={{
                 width: 6,
                 height: 6,

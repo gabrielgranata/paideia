@@ -167,6 +167,7 @@ export function SegmentSpine({ editor, interactive, onInsertAI }: Props) {
             <button
               key={i}
               type="button"
+              className="pd-spine-row"
               disabled={!interactive}
               onClick={() => interactive && jumpTo(editor, i)}
               title={TYPE_LABEL[item.type]}
@@ -236,6 +237,7 @@ export function SegmentSpine({ editor, interactive, onInsertAI }: Props) {
         <span>
           {humanCount} yours · {aiCount} AI {tokens.aiMarker}
         </span>
+        {totalWords > 0 && <span>{totalWords.toLocaleString()} words</span>}
         {humanShare !== null && (
           <span title="Share of the reading's words written by you">
             {humanShare}% your words

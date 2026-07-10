@@ -1,9 +1,14 @@
 "use client";
 
-// BlockHandle — Notion-style per-block gutter control for the reading
-// editor. Hovering a top-level block shows a ⋮⋮ handle in the left
-// gutter; clicking opens a small action menu scoped to that block:
-// move up / move down / insert AI segment below / delete.
+// BlockHandle — Notion-style per-block gutter controls for the reading
+// editor. Hovering a top-level block shows the familiar [+][⋮⋮] pair in
+// the left gutter:
+//
+//   +   inserts a fresh line below the block and opens the slash menu
+//       (it types the "/" for you — same code path as typing it).
+//   ⋮⋮  drag to reorder (native ProseMirror drag + drop cursor), or
+//       click for the action menu: move up / move down / insert AI
+//       segment below / delete.
 //
 // Deliberate omissions: no "duplicate" (it would clone an AI segment's
 // id and read as a second, separately-generated segment — provenance
@@ -12,6 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
 import { tokens } from "@/lib/design/tokens";
 
 type HoverTarget = {
@@ -126,6 +132,23 @@ export function BlockHandle({ editor, wrapperRef }: Props) {
     setTarget(null);
   }
 
+  // The + button: fresh line below, slash menu already open — it types
+  // the "/" so the same detection path as manual typing takes over.
+  function plusBelow(): void {
+    const range = blockRange(editor, index);
+    if (!range) return;
+    editor
+      .chain()
+      .insertContentAt(range.to, {
+        type: "paragraph",
+        content: [{ type: "text", text: "/" }],
+      })
+      .focus(range.to + 2)
+      .run();
+    setMenuOpen(false);
+    setTarget(null);
+  }
+
   function insertAIBelow(): void {
     const range = blockRange(editor, index);
     if (!range) return;
@@ -149,6 +172,38 @@ export function BlockHandle({ editor, wrapperRef }: Props) {
     setTarget(null);
   }
 
+  // Native ProseMirror block drag: select the node, hand its slice to
+  // the view's drag state, let the drop cursor do the rest.
+  function onDragStart(e: React.DragEvent): void {
+    const range = blockRange(editor, index);
+    if (!range) return;
+    const sel = NodeSelection.create(editor.state.doc, range.from);
+    editor.view.dispatch(editor.state.tr.setSelection(sel));
+    const dom = editor.view.nodeDOM(range.from);
+    if (dom instanceof HTMLElement) {
+      e.dataTransfer.setDragImage(dom, 0, 0);
+    }
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", "");
+    editor.view.dragging = { slice: sel.content(), move: true };
+    setMenuOpen(false);
+  }
+
+  const gutterBtn: React.CSSProperties = {
+    width: 20,
+    height: 22,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "none",
+    borderRadius: 3,
+    background: "transparent",
+    color: tokens.color.faint,
+    fontSize: 13,
+    lineHeight: 1,
+    padding: 0,
+  };
+
   const itemStyle: React.CSSProperties = {
     display: "block",
     width: "100%",
@@ -168,11 +223,14 @@ export function BlockHandle({ editor, wrapperRef }: Props) {
 
   return (
     <div
+      className="pd-pop-fast"
       style={{
         position: "absolute",
-        left: 2,
+        left: -22,
         top: target.top,
         zIndex: 50,
+        display: "flex",
+        alignItems: "flex-start",
       }}
       onMouseEnter={() => {
         if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -183,96 +241,119 @@ export function BlockHandle({ editor, wrapperRef }: Props) {
     >
       <button
         type="button"
-        onClick={() => setMenuOpen((v) => !v)}
-        title="Block actions"
-        aria-label="Block actions"
-        style={{
-          width: 20,
-          height: 22,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: "none",
-          borderRadius: 3,
-          background: menuOpen ? tokens.color.margin : "transparent",
-          color: tokens.color.faint,
-          cursor: "grab",
-          fontSize: 12,
-          lineHeight: 1,
-          padding: 0,
-        }}
+        className="pd-gutter-btn"
+        onClick={plusBelow}
+        title="Add a block below (opens the / menu)"
+        aria-label="Add block below"
+        style={gutterBtn}
       >
-        ⋮⋮
+        +
       </button>
-
-      {menuOpen && (
-        <div
+      <div style={{ position: "relative" }}>
+        <button
+          type="button"
+          className="pd-gutter-btn"
+          draggable
+          onDragStart={onDragStart}
+          onClick={() => setMenuOpen((v) => !v)}
+          title="Drag to reorder · click for actions"
+          aria-label="Block actions"
           style={{
-            position: "absolute",
-            left: 22,
-            top: 0,
-            minWidth: 190,
-            background: tokens.color.panel,
-            border: `1px solid ${tokens.color.border}`,
-            borderRadius: 4,
-            boxShadow: tokens.shadowMd,
-            padding: 4,
+            ...gutterBtn,
+            fontSize: 11,
+            cursor: "grab",
+            background: menuOpen ? tokens.color.margin : "transparent",
           }}
         >
-          <button
-            type="button"
-            style={{ ...itemStyle, opacity: index === 0 ? 0.4 : 1 }}
-            disabled={index === 0}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              move(-1);
-            }}
-          >
-            ↑ Move up
-          </button>
-          <button
-            type="button"
-            style={{
-              ...itemStyle,
-              opacity: index >= childCount - 1 ? 0.4 : 1,
-            }}
-            disabled={index >= childCount - 1}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              move(1);
-            }}
-          >
-            ↓ Move down
-          </button>
-          <button
-            type="button"
-            style={{ ...itemStyle, color: tokens.ai.label }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              insertAIBelow();
-            }}
-          >
-            {tokens.aiMarker} Insert AI segment below
-          </button>
+          ⋮⋮
+        </button>
+
+        {menuOpen && (
           <div
+            className="pd-pop"
             style={{
-              height: 1,
-              background: tokens.color.border,
-              margin: "4px 6px",
-            }}
-          />
-          <button
-            type="button"
-            style={{ ...itemStyle, color: tokens.color.flagText }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              removeBlock();
+              position: "absolute",
+              left: 22,
+              top: 0,
+              minWidth: 190,
+              background: tokens.color.panel,
+              border: `1px solid ${tokens.color.border}`,
+              borderRadius: 6,
+              boxShadow: tokens.shadowMd,
+              padding: 4,
             }}
           >
-            ✕ Delete block
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              className="pd-item"
+              style={{ ...itemStyle, opacity: index === 0 ? 0.4 : 1 }}
+              disabled={index === 0}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                move(-1);
+              }}
+            >
+              ↑ Move up
+            </button>
+            <button
+              type="button"
+              className="pd-item"
+              style={{
+                ...itemStyle,
+                opacity: index >= childCount - 1 ? 0.4 : 1,
+              }}
+              disabled={index >= childCount - 1}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                move(1);
+              }}
+            >
+              ↓ Move down
+            </button>
+            <button
+              type="button"
+              className="pd-item"
+              style={{ ...itemStyle, color: tokens.ai.label }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                insertAIBelow();
+              }}
+            >
+              {tokens.aiMarker} Insert AI segment below
+            </button>
+            <div
+              style={{
+                height: 1,
+                background: tokens.color.border,
+                margin: "4px 6px",
+              }}
+            />
+            <button
+              type="button"
+              className="pd-item"
+              style={{ ...itemStyle, color: tokens.color.flagText }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                removeBlock();
+              }}
+            >
+              ✕ Delete block
+            </button>
+            <div
+              style={{
+                padding: "4px 12px 2px",
+                fontFamily: tokens.font.ui,
+                fontSize: 8,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: tokens.color.faint,
+              }}
+            >
+              or drag ⋮⋮ to reorder
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
