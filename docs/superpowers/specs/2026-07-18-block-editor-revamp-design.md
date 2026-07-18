@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-18
 **Status:** Direction approved; the four open questions are resolved (see end).
-Prototype A amendments (prompt-first, outline-as-storyboard) pending final
-confirmation.
+Prompt-first confirmed. Arc templates deferred — v1 is a single flexible
+lesson; templates get built as real usage shows which arcs recur.
 **Prototypes:** https://claude.ai/code/artifact/9316deff-2b92-4041-a212-a780dae6ad8b (rev 2, "notion-idiom")
 
 ## Decision
@@ -127,10 +127,12 @@ load-bearing. A future TA role slots between without new surfaces.
      question; during composition it is a fixed page header (descendant of
      the reading editor's epigraph) and is separately placed in-flow where
      the student meets it.
-   - **Outline as storyboard.** The teacher can sketch the arc as empty
-     outline rows (or an arc template: context → source → tension → prompt)
-     and fill blocks from there. Skeleton rows are empty blocks, so the
-     outline remains a pure projection of the doc (invariant 4 holds).
+   - **Single flexible lesson in v1 (amended same day).** No arc-template
+     picker: after naming the question the teacher lands on one flexible
+     page (pinned prompt, prompt block in flow, empty paragraph). Arc
+     templates / storyboard skeletons are deferred until real usage shows
+     which arcs recur. If added later, skeleton rows are empty blocks, so
+     the outline stays a pure projection of the doc (invariant 4 holds).
    - **Assembly-first composing.** Curate sources, write connective tissue
      around them; the blank page is not the expected starting state.
    Private teacher notes: teacher margin comments (symmetric with the
