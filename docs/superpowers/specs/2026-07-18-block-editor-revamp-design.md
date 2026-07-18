@@ -1,7 +1,9 @@
 # Block-Editor Revamp — One Familiar Editor, Role-Scoped
 
 **Date:** 2026-07-18
-**Status:** Design approved in direction; four open questions pending (see end).
+**Status:** Direction approved; the four open questions are resolved (see end).
+Prototype A amendments (prompt-first, outline-as-storyboard) pending final
+confirmation.
 **Prototypes:** https://claude.ai/code/artifact/9316deff-2b92-4041-a212-a780dae6ad8b (rev 2, "notion-idiom")
 
 ## Decision
@@ -76,8 +78,8 @@ only content in the flow.
   - `Text` — plain paragraph
   - `Quote from materials` — cited excerpt, from this lesson's sources only
   - `Mark this paragraph as claim/support/challenge/inquiry` — metadata only
-  - `◆ Ask what the AI notices here` — summons a *comment into the margin*,
-    never text into the draft (status: open question 3)
+  - ~~`◆ Ask what the AI notices here`~~ — **cut** (resolution 3): comments
+    are turn-driven via Save & reflect; no summon command
 
 ## Prototype C — the menu is the permissions page
 
@@ -106,23 +108,42 @@ load-bearing. A future TA role slots between without new surfaces.
   sidebar outline. The manuscript chrome (sheet/epigraph styling) is replaced.
 - Student-side move-tagging must round-trip through the substrate
   (`nodes.role` is the locked axis); the outline reads from it, per invariant 4.
-- "Ask what the AI notices" would be a new bounded LLM call or a variant of
-  the existing turn call — **adding a pipeline call is an architecture
-  decision** (prompt rule 2) and is gated on open question 3.
+- Turn-driven comments reuse the existing turn call; anchoring observations
+  to paragraphs needs the turn call to emit text-offset/segment references —
+  a schema addition, not a new pipeline call.
+- The ingest/claims pipeline is expected to be redesigned (resolution 2);
+  move-marking UI should stay thin until that redesign lands.
 - Run `/paideia-fidelity-check` before implementing Prototype B (student-facing
   loop changes: move-marking, summoned comments).
 
-## Open questions — unresolved, decisions pending
+## Resolutions (2026-07-18)
 
-1. **Lesson as one doc.** Merge plan view + block editors + reading editor
-   into one page (as drawn), or keep block cards standardized on this editor?
-   Where do per-block private teacher notes live (proposal: teacher margin
-   comments, symmetric with the student rail)?
-2. **Who names the moves.** Student-only, ingest-only, or hybrid (drawn:
-   ingest proposes as dashed chip, student confirms/re-marks)?
-3. **Summoned comments.** Keep `◆ Ask what the AI notices` as-is, rate-limit
-   it / fold it into Save & reflect, or cut it (comments purely turn-driven)?
-   Closest-to-the-line element in the design.
-4. **Identity.** Fully neutral everywhere (as drawn), or serif/parchment
-   retained where students *read* (rendered readings, artifacts) with neutral
-   reserved for *working* surfaces?
+1. **Lesson shape — one doc, reframed as artifact, not method.** The
+   challenge "are lessons really documents?" resolves as: teachers design
+   *backward from a question* and *assemble materials into an arc*; the
+   document is where the design lands, i.e. the student's linear experience.
+   Three amendments to Prototype A (pending final confirmation):
+   - **Prompt first, pinned.** New-lesson flow begins with the central
+     question; during composition it is a fixed page header (descendant of
+     the reading editor's epigraph) and is separately placed in-flow where
+     the student meets it.
+   - **Outline as storyboard.** The teacher can sketch the arc as empty
+     outline rows (or an arc template: context → source → tension → prompt)
+     and fill blocks from there. Skeleton rows are empty blocks, so the
+     outline remains a pure projection of the doc (invariant 4 holds).
+   - **Assembly-first composing.** Curate sources, write connective tissue
+     around them; the blank page is not the expected starting state.
+   Private teacher notes: teacher margin comments (symmetric with the
+   student rail).
+2. **Move naming — hybrid for now** (ingest proposes dashed chips, student
+   confirms/re-marks). Note: the ingest/claims pipeline itself is expected to
+   be redesigned; do not over-invest in move-marking mechanics until that
+   lands.
+3. **Summoned comments — cut.** No `◆ Ask what the AI notices` command.
+   Comments are turn-driven (Save & reflect). No new pipeline call; prompt
+   rule 2 untouched. The student slash catalog shrinks to: Text, Quote from
+   materials, Mark-as.
+4. **Identity — serif for reading, neutral for working.** Editable surfaces
+   use the neutral idiom as drawn; rendered readings, artifact pages, and
+   read-only student surfaces keep the EB Garamond/parchment warmth. The
+   typographic split itself signals mode.
