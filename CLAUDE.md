@@ -66,7 +66,7 @@ The non-negotiables below are always loaded. Procedural depth lives in skills:
 ### Prompt rules
 
 1. **The LLM never writes the substrate directly.** Bounded calls emit Zod-validated proposals; deterministic appliers fold them into nodes/edges. *(architecture)*
-2. **Pipeline, not agent.** Five fixed calls (ingest, gap-surface, reading composer, progression composer, artifact composer). Adding a sixth is an architecture decision, not a prompt edit. *(architecture)*
+2. **Pipeline, not agent.** A fixed registry of bounded calls, one module each under `src/lib/llm/` — student path: turn call, reading composer, progression composer, artifact composer; teacher path: lesson-content composer, class-summary composer, teacher lesson chat. Adding a call is an architecture decision, not a prompt edit; the student-path calls carry the full weight of rules 3–5. *(architecture)*
 3. **No free-form completion fields in any LLM output schema.** No `summary`, `answer`, `recommendation`, `reasoning`, or open-ended `notes`. If the LLM could fill it with a conclusion, the schema is wrong. *(architecture, enforces capacity-formation)*
 4. **Every composed sentence cites substrate node IDs.** Empty `cites` is allowed only for meta-prose (headings) and is visually flagged. Uncited prose is the drift signal. *(architecture)*
 5. **Voice is observational and structural, never declarative or evaluative.** "There is a tension between n3 and n5" — yes. "n5 is correct," "the answer is," "you should conclude" — never. *(surface, enforced in prompts)*
